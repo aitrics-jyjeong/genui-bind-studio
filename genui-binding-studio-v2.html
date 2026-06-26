@@ -1,0 +1,584 @@
+<!--
+  GenUI Binding Studio v2 — 목업
+  사용성: 드래그앤드롭 WYSIWYG 배치 + 데스크톱/모바일 뷰포트 + 반응형 region 규칙
+  확장성: 컴포넌트 카탈로그(레지스트리) + 런타임 커스텀 컴포넌트 등록 + 의료 렌더러 확장
+  자체완결(외부 네트워크/폰트 없음), 상태는 메모리에만 보관.
+  ※ 표시되는 임상 값/필드 타입은 모두 설명용 예시(mock)이며 실제 제품 스키마가 아님.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GenUI Binding Studio v2</title>
+<style>
+  :root{
+    --ink:#13202B; --ink-soft:#3A4C5A; --muted:#69808F;
+    --canvas:#E9EEF2; --paper:#FFFFFF; --line:#D7E0E6; --line-soft:#E7EDF1;
+    --code-bg:#0E1B27; --code-line:#1E3142; --code-text:#C7D6E0; --code-dim:#6E899B;
+    --accent:#0E7C86; --accent-bright:#13A4A2; --accent-wash:#E3F2F1;
+    --sev-high:#D4493C; --sev-high-bg:#FBE9E7; --sev-med:#C77A12; --sev-med-bg:#FBF1E0;
+    --sev-low:#2E8B57; --sev-low-bg:#E5F4EC; --flag-l:#1E6FB0; --flag-l-bg:#E7F0FA;
+    --radius:10px;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:var(--sans); color:var(--ink); background:var(--canvas); font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased}
+  .app{display:flex; flex-direction:column; height:100vh; min-height:0}
+
+  header.bar{display:flex; align-items:center; gap:14px; padding:11px 20px; background:var(--paper); border-bottom:1px solid var(--line)}
+  .brand{display:flex; align-items:baseline; gap:10px; margin-right:auto}
+  .brand .logo{font-family:var(--mono); font-weight:600; letter-spacing:.04em; color:var(--paper); background:var(--ink); padding:4px 8px; border-radius:6px; font-size:12px}
+  .brand h1{font-size:15px; font-weight:650; margin:0; letter-spacing:-.01em}
+  .brand .sub{color:var(--muted); font-size:12.5px}
+  .btn{border:1px solid var(--line); background:var(--paper); color:var(--ink-soft); padding:7px 13px; border-radius:8px; font-size:13px; cursor:pointer; font-weight:550; font-family:var(--sans)}
+  .btn:hover{border-color:var(--accent); color:var(--accent)}
+  .btn:focus-visible{outline:2px solid var(--accent-bright); outline-offset:2px}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn.primary:hover{background:var(--accent-bright); border-color:var(--accent-bright); color:#fff}
+
+  .cols{display:flex; flex:1; min-height:0}
+  .col{display:flex; flex-direction:column; min-height:0; border-right:1px solid var(--line)}
+  .col.define{width:320px; flex:none}
+  .col.stage{flex:1; min-width:0}
+  .col.catalog{width:312px; flex:none; border-right:none}
+
+  .col-head{display:flex; align-items:center; gap:10px; padding:12px 16px 11px; background:var(--paper); border-bottom:1px solid var(--line)}
+  .step-no{font-family:var(--mono); font-size:12px; font-weight:600; color:var(--accent); border:1px solid var(--accent); border-radius:6px; padding:2px 7px}
+  .col-head h2{font-size:13.5px; margin:0; font-weight:650; letter-spacing:-.01em}
+  .col-head .hint{margin-left:auto; color:var(--muted); font-size:11.5px}
+  .col-body{flex:1; min-height:0; overflow:auto; padding:14px 16px}
+  .col.define .col-body,.col.catalog .col-body{background:var(--canvas)}
+  .col.stage .col-body{background:var(--canvas); padding:0}
+
+  .field-label{font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; margin:0 0 6px}
+
+  /* code editor */
+  .code-wrap{background:var(--code-bg); border-radius:var(--radius); overflow:hidden; border:1px solid var(--code-line)}
+  .code-top{display:flex; align-items:center; gap:6px; padding:8px 11px; border-bottom:1px solid var(--code-line); font-family:var(--mono); font-size:11px; color:var(--code-dim)}
+  .dot{width:9px;height:9px;border-radius:50%}
+  textarea.code{width:100%; border:0; resize:vertical; min-height:230px; background:transparent; color:var(--code-text); font-family:var(--mono); font-size:12.5px; line-height:1.6; padding:12px; outline:none; tab-size:2}
+  .apply-row{display:flex; gap:8px; margin-top:10px; align-items:center}
+  .parse-msg{font-size:12px; color:var(--muted)} .parse-msg.err{color:var(--sev-high)}
+
+  .mock-list{margin-top:20px}
+  .mock-item{margin-bottom:13px}
+  .mock-item .key{font-family:var(--mono); font-size:12.5px; font-weight:600}
+  .mock-item .ty{font-family:var(--mono); font-size:11px; color:var(--accent); margin-left:6px}
+  .ctrl{width:100%; margin-top:6px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:13px; background:var(--paper); color:var(--ink); font-family:var(--sans)}
+  textarea.ctrl{font-family:var(--mono); font-size:11.5px; line-height:1.5; resize:vertical; min-height:58px}
+  .ctrl:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-wash)}
+  input[type=range].ctrl{padding:0; height:26px}
+  .range-val{font-family:var(--mono); font-size:12px; color:var(--accent); float:right}
+
+  /* ---------- stage (WYSIWYG) ---------- */
+  .stage-toolbar{display:flex; align-items:center; gap:10px; padding:10px 16px; background:var(--paper); border-bottom:1px solid var(--line-soft)}
+  .vp-toggle{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden}
+  .vp-toggle button{border:0; background:var(--paper); padding:6px 12px; font-size:12.5px; cursor:pointer; color:var(--ink-soft); font-weight:550}
+  .vp-toggle button.on{background:var(--accent); color:#fff}
+  .tb-note{margin-left:auto; color:var(--muted); font-size:11.5px}
+
+  .stage-scroll{flex:1; overflow:auto; padding:20px; display:flex; justify-content:center}
+  .frame{width:100%; max-width:900px; transition:max-width .2s ease}
+  .frame.mobile{max-width:400px; box-shadow:0 0 0 8px #1A2A36, 0 14px 40px rgba(15,30,45,.25); border-radius:22px; padding:14px; background:var(--canvas)}
+
+  .tray{background:var(--paper); border:1px dashed var(--line); border-radius:var(--radius); padding:11px 12px; margin-bottom:16px}
+  .tray-lab{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; margin-bottom:8px}
+  .tray-chips{display:flex; flex-wrap:wrap; gap:7px; min-height:24px}
+  .tray.hot{border-color:var(--accent); background:var(--accent-wash)}
+  .tray-empty{color:var(--muted); font-size:12px}
+  .chip{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:12px; font-weight:600; color:var(--accent); background:var(--accent-wash); border:1px solid #CDE7E5; border-radius:7px; padding:4px 9px; cursor:grab}
+  .chip .ty{color:var(--muted); font-weight:500}
+  .chip:active{cursor:grabbing}
+
+  .region-tag{font-family:var(--mono); font-size:10.5px; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; margin:0 2px 7px; display:flex; align-items:center; gap:8px}
+  .region-tag .badge{color:var(--sev-med); background:var(--sev-med-bg); border-radius:5px; padding:1px 6px; font-size:9.5px; letter-spacing:.02em}
+  .region-tag::after{content:""; flex:1; height:1px; background:var(--line)}
+  .zone{min-height:46px; border-radius:var(--radius); transition:background .12s, box-shadow .12s}
+  .zone.hot{background:var(--accent-wash); box-shadow:inset 0 0 0 2px var(--accent-bright)}
+  .zone.empty{border:1px dashed var(--line); display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:12px}
+  .stack{display:flex; flex-direction:column; gap:13px}
+  .region{margin-bottom:16px}
+  .dash-grid{display:grid; grid-template-columns:1.9fr 1fr; gap:15px; align-items:start}
+  .frame.mobile .dash-grid{grid-template-columns:1fr}
+  .zone-hidden{opacity:.5}
+
+  /* block */
+  .blk{position:relative; background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; cursor:grab}
+  .blk:active{cursor:grabbing}
+  .blk.dragging{opacity:.4}
+  .blk-head{display:flex; align-items:center; gap:8px; padding:7px 10px 7px 12px; border-bottom:1px solid var(--line-soft)}
+  .grip{color:var(--muted); font-size:13px; letter-spacing:-2px; cursor:grab}
+  .blk-key{font-family:var(--mono); font-size:11.5px; font-weight:600; color:var(--ink-soft)}
+  .blk-comp{font-family:var(--mono); font-size:10.5px; color:var(--muted)}
+  .prov{font-size:10px; font-family:var(--mono); color:var(--accent); background:var(--accent-wash); border-radius:5px; padding:1px 6px; margin-left:auto}
+  details.menu{position:relative}
+  details.menu>summary{list-style:none; cursor:pointer; color:var(--muted); font-size:16px; line-height:1; padding:0 4px; border-radius:5px}
+  details.menu>summary::-webkit-details-marker{display:none}
+  details.menu>summary:hover{color:var(--accent); background:var(--accent-wash)}
+  .menu-panel{margin-top:8px; border-top:1px dashed var(--line-soft); padding-top:8px}
+  .menu-sec{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; margin:6px 0 5px}
+  .menu-opts{display:flex; flex-wrap:wrap; gap:5px}
+  .menu-opts button{border:1px solid var(--line); background:var(--paper); border-radius:6px; padding:4px 8px; font-size:11.5px; font-family:var(--mono); cursor:pointer; color:var(--ink-soft)}
+  .menu-opts button:hover{border-color:var(--accent); color:var(--accent)}
+  .menu-opts button.cur{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .menu-opts button.danger:hover{border-color:var(--sev-high); color:var(--sev-high)}
+  .blk-body{padding:13px}
+
+  /* ---------- renderers ---------- */
+  .md h2{font-size:15px; margin:.1em 0 .4em} .md strong{color:var(--ink)} .md ul{margin:.3em 0; padding-left:18px} .md p{margin:.35em 0; color:var(--ink-soft)}
+  .metric{display:flex; align-items:baseline; gap:8px} .metric .v{font-size:30px; font-weight:680; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+  table.dt{width:100%; border-collapse:collapse; font-size:12.5px}
+  table.dt th,table.dt td{text-align:left; padding:6px 9px; border-bottom:1px solid var(--line-soft)}
+  table.dt th{color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em}
+  table.dt td{font-variant-numeric:tabular-nums} table.dt tr:last-child td{border-bottom:none}
+  .gauge .num,.conf .num{display:flex; align-items:baseline; gap:8px; margin-bottom:8px}
+  .gauge .num b{font-size:26px; font-weight:680; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+  .sev{font-size:11px; font-weight:650; padding:2px 8px; border-radius:20px}
+  .sev.high{color:var(--sev-high); background:var(--sev-high-bg)} .sev.med{color:var(--sev-med); background:var(--sev-med-bg)} .sev.low{color:var(--sev-low); background:var(--sev-low-bg)}
+  .meter{position:relative; height:12px; border-radius:7px; overflow:hidden; background:linear-gradient(90deg,#3FA76B 0,#3FA76B 30%,#E0B23C 30%,#E0B23C 70%,#D4493C 70%,#D4493C 100%)}
+  .meter .mark{position:absolute; top:-3px; width:3px; height:18px; background:var(--ink); border-radius:2px; transform:translateX(-50%)}
+  .meter-scale{display:flex; justify-content:space-between; font-family:var(--mono); font-size:10px; color:var(--muted); margin-top:4px}
+  /* trend */
+  .trend svg{width:100%; height:54px; display:block} .trend .cap{display:flex; justify-content:space-between; font-family:var(--mono); font-size:10.5px; color:var(--muted); margin-top:5px}
+  /* lab */
+  table.lab{width:100%; border-collapse:collapse; font-size:12.5px}
+  table.lab th,table.lab td{text-align:left; padding:6px 8px; border-bottom:1px solid var(--line-soft)}
+  table.lab th{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em}
+  table.lab td.val{font-variant-numeric:tabular-nums; font-weight:600}
+  table.lab .ref{color:var(--muted); font-size:11px}
+  .fl{font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px}
+  .fl.H{color:var(--sev-high); background:var(--sev-high-bg)} .fl.L{color:var(--flag-l); background:var(--flag-l-bg)}
+  /* alert */
+  .alert{display:flex; gap:10px; align-items:flex-start; padding:11px 13px; border-radius:9px; border:1px solid}
+  .alert.high{background:var(--sev-high-bg); border-color:#F3C7C1} .alert.med{background:var(--sev-med-bg); border-color:#EDD9A8} .alert.low{background:var(--sev-low-bg); border-color:#BFE3CD}
+  .alert .ai{width:20px;height:20px;border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; color:#fff}
+  .alert.high .ai{background:var(--sev-high)} .alert.med .ai{background:var(--sev-med)} .alert.low .ai{background:var(--sev-low)}
+  .alert .at{font-size:13px; color:var(--ink); font-weight:550}
+  /* image */
+  .imgv{aspect-ratio:4/3; border-radius:9px; background:#0E1B27; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--code-dim)}
+  .imgv svg{opacity:.7} .imgv .il{font-family:var(--mono); font-size:11px}
+  /* kv */
+  dl.kv{margin:0; display:grid; grid-template-columns:auto 1fr; gap:6px 14px; font-size:13px}
+  dl.kv dt{color:var(--muted)} dl.kv dd{margin:0; font-weight:550; text-align:right}
+  /* pathway */
+  .path{display:flex; align-items:flex-start; gap:0}
+  .path .st{flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; position:relative}
+  .path .st::before{content:""; position:absolute; top:9px; left:-50%; width:100%; height:2px; background:var(--line)}
+  .path .st:first-child::before{display:none}
+  .path .st.done::before,.path .st.current::before{background:var(--accent)}
+  .path .cir{width:18px;height:18px;border-radius:50%; border:2px solid var(--line); background:var(--paper); z-index:1}
+  .path .st.done .cir{background:var(--accent); border-color:var(--accent)}
+  .path .st.current .cir{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-wash)}
+  .path .sl{font-size:11px; color:var(--ink-soft); text-align:center} .path .st.current .sl{color:var(--accent); font-weight:650}
+  /* tags */
+  .tags{display:flex; flex-wrap:wrap; gap:6px}
+  .tags .t{font-size:12px; background:#EEF3F6; border:1px solid var(--line); border-radius:20px; padding:3px 10px; color:var(--ink-soft); font-family:var(--mono)}
+  /* confidence */
+  .conf .bar{height:9px; border-radius:6px; background:var(--line-soft); overflow:hidden} .conf .bar i{display:block; height:100%; background:var(--accent); border-radius:6px}
+  .conf .num b{font-size:20px; font-weight:680; font-variant-numeric:tabular-nums}
+  /* citations / fallback */
+  .cites{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px}
+  .cites li{display:flex; gap:9px; font-size:12.5px} .cites .idx{font-family:var(--mono); color:var(--accent); font-weight:600} .cites .src{color:var(--muted); font-size:11.5px}
+  .cc{display:flex; flex-direction:column; gap:7px} .cc .cc-top{display:flex; align-items:center; gap:8px} .cc .cc-title{font-weight:650; font-size:14px} .cc .cc-body{color:var(--ink-soft); font-size:13px}
+  .fb{border:1px dashed var(--line); border-radius:8px; padding:11px; background:#FBFCFD} .fb .fb-note{font-size:11.5px; color:var(--sev-med); margin-bottom:7px; font-weight:600} .fb pre{margin:0; font-family:var(--mono); font-size:11px; color:var(--ink-soft); white-space:pre-wrap; word-break:break-word}
+
+  /* ---------- catalog / rules ---------- */
+  .cat-item{background:var(--paper); border:1px solid var(--line); border-radius:9px; padding:10px 11px; margin-bottom:9px}
+  .cat-item .cn{font-family:var(--mono); font-size:12.5px; font-weight:650}
+  .cat-item .cl{font-size:11.5px; color:var(--muted); margin-top:1px}
+  .cat-item .acc{display:flex; flex-wrap:wrap; gap:4px; margin-top:7px}
+  .cat-item .acc .a{font-family:var(--mono); font-size:10px; color:var(--accent); background:var(--accent-wash); border-radius:4px; padding:1px 6px}
+  .cat-item .custom{font-size:9.5px; color:var(--sev-med); background:var(--sev-med-bg); border-radius:4px; padding:1px 6px; margin-left:6px; font-weight:600}
+  details.reg{margin-top:6px} details.reg>summary{list-style:none; cursor:pointer}
+  details.reg>summary::-webkit-details-marker{display:none}
+  .reg-form{background:var(--paper); border:1px solid var(--line); border-radius:9px; padding:11px; margin-top:8px; display:flex; flex-direction:column; gap:8px}
+  .reg-form .ctrl{margin-top:0}
+  .rules{background:var(--paper); border:1px solid var(--line); border-radius:9px; padding:12px; margin-top:6px}
+  .rule-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px}
+  .rule-row:last-child{margin-bottom:0}
+  .rule-row label{font-size:12.5px; color:var(--ink-soft)}
+  .rule-row .ctrl{margin-top:0; width:130px}
+  .sec-gap{height:22px}
+
+  /* drawer */
+  .drawer-back{position:fixed; inset:0; background:rgba(14,27,39,.45); display:none; z-index:40} .drawer-back.open{display:block}
+  .drawer{position:fixed; top:0; right:0; height:100%; width:min(560px,92vw); background:var(--code-bg); transform:translateX(100%); transition:transform .2s ease; z-index:50; display:flex; flex-direction:column} .drawer.open{transform:translateX(0)}
+  .drawer-head{display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--code-line)} .drawer-head h3{margin:0; font-size:14px; color:#fff; font-weight:600}
+  .drawer-head .x{margin-left:auto; background:none; border:none; color:var(--code-dim); font-size:20px; cursor:pointer} .drawer-head .x:hover{color:#fff}
+  .drawer-body{flex:1; overflow:auto; padding:16px 18px}
+  .drawer-body h4{font-family:var(--mono); font-size:11px; color:var(--accent-bright); text-transform:uppercase; letter-spacing:.06em; margin:0 0 8px} .drawer-body h4:not(:first-child){margin-top:22px}
+  .drawer-body pre{margin:0; background:#0A141D; border:1px solid var(--code-line); border-radius:8px; padding:13px; font-family:var(--mono); font-size:11.5px; line-height:1.6; color:var(--code-text); white-space:pre-wrap; word-break:break-word}
+
+  .illus{font-size:11px; color:var(--muted); text-align:center; padding:8px 16px; background:var(--paper); border-top:1px solid var(--line-soft)}
+
+  @media (max-width:1100px){
+    .cols{flex-direction:column; overflow:auto}
+    .col{width:auto !important; flex:none; border-right:none; border-bottom:1px solid var(--line)}
+    .col-body{overflow:visible}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand"><span class="logo">GenUI</span><h1>Binding Studio</h1><span class="sub">v2 · 끌어다 놓아 배치 · 카탈로그 확장</span></div>
+    <button class="btn" id="btnContract">계약 JSON 보기</button>
+    <button class="btn" id="btnReset">초기화</button>
+  </header>
+
+  <div class="cols">
+    <!-- 01 -->
+    <section class="col define">
+      <div class="col-head"><span class="step-no">01</span><h2>응답값 정의</h2><span class="hint">GraphQL</span></div>
+      <div class="col-body">
+        <p class="field-label">응답 스키마</p>
+        <div class="code-wrap"><div class="code-top"><span class="dot" style="background:#E0726A"></span><span class="dot" style="background:#E0B23C"></span><span class="dot" style="background:#5FB37E"></span><span style="margin-left:6px">response.graphql</span></div>
+          <textarea class="code" id="schema" spellcheck="false"></textarea></div>
+        <div class="apply-row"><button class="btn primary" id="btnParse">필드 적용</button><span class="parse-msg" id="parseMsg"></span></div>
+        <div class="mock-list"><p class="field-label">응답값 (예시 데이터)</p><div id="mockFields"></div></div>
+      </div>
+    </section>
+
+    <!-- 02 -->
+    <section class="col stage">
+      <div class="col-head"><span class="step-no">02</span><h2>화면 배치 · 프리뷰</h2><span class="hint">끌어다 놓기 · WYSIWYG</span></div>
+      <div class="col-body" style="display:flex;flex-direction:column">
+        <div class="stage-toolbar">
+          <div class="vp-toggle"><button data-vp="desktop" class="on">데스크톱</button><button data-vp="mobile">모바일</button></div>
+          <span class="tb-note">필드를 영역으로 끌어다 놓고, 블록을 끌어 순서/영역을 바꾸세요</span>
+        </div>
+        <div class="stage-scroll"><div class="frame" id="frame"></div></div>
+        <div class="illus">표시된 임상 값·필드 타입은 모두 설명용 예시이며 실제 V.Doc/닥터앤써 스키마가 아닙니다.</div>
+      </div>
+    </section>
+
+    <!-- 03 -->
+    <section class="col catalog">
+      <div class="col-head"><span class="step-no">03</span><h2>카탈로그 · 규칙</h2><span class="hint">registry</span></div>
+      <div class="col-body">
+        <p class="field-label">컴포넌트 레지스트리</p>
+        <div id="catList"></div>
+        <details class="reg"><summary class="btn" style="display:inline-block">+ 컴포넌트 등록</summary>
+          <div class="reg-form">
+            <input class="ctrl" id="regName" placeholder="이름 (예: BurnDownChart)">
+            <select class="ctrl" id="regBase"></select>
+            <input class="ctrl" id="regAccepts" placeholder="허용 타입 (예: TimeSeries)">
+            <button class="btn primary" id="regAdd">레지스트리에 추가</button>
+          </div>
+        </details>
+
+        <div class="sec-gap"></div>
+        <p class="field-label">반응형 region 규칙</p>
+        <div class="rules">
+          <div class="rule-row"><label>모바일 분기점(px)</label><input class="ctrl" type="number" id="ruleBp" value="768"></div>
+          <div class="rule-row"><label>모바일에서 sidebar</label>
+            <select class="ctrl" id="ruleSb"><option value="below">main 아래로</option><option value="hide">숨김</option><option value="keep">유지</option></select></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="drawer-back" id="drawerBack"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head"><h3>생성된 계약 JSON</h3><button class="x" id="drawerClose" aria-label="닫기">&times;</button></div>
+  <div class="drawer-body">
+    <h4>표시 계약 (개발자 소유 · 정적)</h4><pre id="displayContract"></pre>
+    <h4>응답값 계약 (에이전트 출력 · 값만)</h4><pre id="valueContract"></pre>
+  </div>
+</aside>
+
+<script>
+"use strict";
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
+function isEmpty(v){if(v==null)return true; if(typeof v==="string")return v.trim()===""; if(Array.isArray(v))return v.length===0; if(typeof v==="object")return Object.keys(v).length===0; return false;}
+
+/* ===== 컴포넌트 카탈로그 (레지스트리) — 확장 지점 ===== */
+/* renderer: 실제 그리는 함수 키. accepts: 이 컴포넌트가 받는 응답 타입. */
+const CATALOG = [
+  {name:"MarkdownBlock", label:"서식 텍스트",       renderer:"md",     accepts:["Markdown","Text","String"]},
+  {name:"MetricBlock",   label:"단일 지표",         renderer:"metric", accepts:["Int","Float","Number"]},
+  {name:"RiskGauge",     label:"위험도 게이지",     renderer:"gauge",  accepts:["Gauge"]},
+  {name:"ConfidenceBar", label:"모델 신뢰도",       renderer:"conf",   accepts:["Confidence","Float"]},
+  {name:"TrendChart",    label:"추세(시계열)",       renderer:"trend",  accepts:["TimeSeries"]},
+  {name:"DataTable",     label:"표",               renderer:"table",  accepts:["Table"]},
+  {name:"LabPanel",      label:"검사 패널",         renderer:"lab",    accepts:["LabResults"]},
+  {name:"AlertBanner",   label:"경고 배너",         renderer:"alert",  accepts:["Alert"]},
+  {name:"ClinicalCard",  label:"임상 카드",         renderer:"cc",     accepts:["ClinicalCard"]},
+  {name:"CarePathway",   label:"경로/단계",         renderer:"path",   accepts:["Timeline"]},
+  {name:"KeyValueList",  label:"키-값 목록",        renderer:"kv",     accepts:["Demographics","Table"]},
+  {name:"TagList",       label:"태그/코드",         renderer:"tags",   accepts:["Tags"]},
+  {name:"ImageViewer",   label:"이미지/판독뷰",     renderer:"image",  accepts:["Image"]},
+  {name:"CitationList",  label:"근거 출처",         renderer:"cites",  accepts:["CitationList"]},
+  {name:"FallbackBlock", label:"안전 폴백",         renderer:"fb",     accepts:["*"]},
+];
+const catByName = n => CATALOG.find(c=>c.name===n);
+function defaultComponentFor(type){
+  const hit = CATALOG.find(c=>c.accepts.includes(type));
+  return hit ? hit.name : "FallbackBlock";
+}
+const REGIONS=["header","main","sidebar"];
+function defaultRegion(t){
+  if(["Demographics","Markdown","Alert"].includes(t)) return "header";
+  if(["Gauge","Confidence","Tags","CitationList","Image"].includes(t)) return "sidebar";
+  return "main";
+}
+function defaultMock(t){
+  switch(t){
+    case "Markdown": return "## 판독 요약\n환자는 현재 **안정적**이나 다음 추적이 필요합니다.\n- 호흡 패턴 모니터링\n- 6시간 후 재평가";
+    case "Demographics": return {"환자":"예시 환자","나이":"67","성별":"M","병동":"ICU-3"};
+    case "Alert": return {level:"high", text:"조기경고점수 상승 — 신속 재평가 권고"};
+    case "Gauge": return 0.72;
+    case "Confidence": return 0.88;
+    case "TimeSeries": return [94,96,95,92,90,93,96,95];
+    case "Table": return {"호흡수":18,"심박수":92,"체온(℃)":37.8,"SpO₂(%)":96};
+    case "LabResults": return [{name:"WBC",value:11.2,unit:"10³/µL",ref:"4.0–10.0",flag:"H"},{name:"CRP",value:2.4,unit:"mg/dL",ref:"<0.5",flag:"H"},{name:"Hb",value:13.1,unit:"g/dL",ref:"13–17",flag:""}];
+    case "ClinicalCard": return {title:"추적 관찰 권고", body:"악화 징후 시 신속대응팀 호출을 권고합니다.", severity:"medium"};
+    case "Timeline": return [{stage:"평가",status:"done"},{stage:"중재",status:"current"},{stage:"재평가",status:"todo"}];
+    case "Tags": return ["R06.0 호흡곤란","J18.9 폐렴(예시)"];
+    case "Image": return {label:"흉부 X-ray · 예시"};
+    case "CitationList": return [{title:"분석 결과 #A-1203",source:"내부 모델 출력"},{title:"바이탈 추세 8h",source:"데이터 스트림"}];
+    case "Int": case "Float": case "Number": return 42;
+    default: return "샘플 텍스트";
+  }
+}
+
+/* ===== 상태 ===== */
+const DEFAULT_SCHEMA =
+`type Response {
+  patient: Demographics
+  summary: Markdown
+  ewsAlert: Alert
+  riskScore: Gauge
+  modelConfidence: Confidence
+  vitalsTrend: TimeSeries
+  labs: LabResults
+  recommendation: ClinicalCard
+  carePathway: Timeline
+  findings: Tags
+  sources: CitationList
+}`;
+const DEFAULT_LAYOUT = {
+  header:["patient","summary","ewsAlert"],
+  main:["vitalsTrend","labs","recommendation","carePathway"],
+  sidebar:["riskScore","modelConfidence","findings","sources"]
+};
+let state = { fields:[], mock:{}, comp:{}, layout:{header:[],main:[],sidebar:[]}, rules:{breakpoint:768, sidebar:"below"}, viewport:"desktop" };
+
+/* ===== GraphQL 파서 ===== */
+function parseSchema(text){
+  const m=text.match(/type\s+\w+\s*\{([\s\S]*?)\}/); if(!m) throw new Error("type 블록 없음");
+  const fields=[]; m[1].split("\n").forEach(l=>{const fm=l.match(/^\s*(\w+)\s*:\s*([\[\]\w!]+)/); if(fm)fields.push({key:fm[1],gqlType:fm[2].replace(/[\[\]!]/g,"")});});
+  if(!fields.length) throw new Error("필드 없음"); return fields;
+}
+function placedKeys(){return [...state.layout.header,...state.layout.main,...state.layout.sidebar];}
+function applySchema(initial){
+  const text=document.getElementById("schema").value; const msg=document.getElementById("parseMsg");
+  let fields; try{fields=parseSchema(text);}catch(e){msg.textContent="파싱 실패: "+e.message; msg.className="parse-msg err"; return;}
+  const newComp={}, newMock={};
+  fields.forEach(f=>{ newComp[f.key]= state.comp[f.key] || defaultComponentFor(f.gqlType); newMock[f.key]= (f.key in state.mock)? state.mock[f.key] : defaultMock(f.gqlType); });
+  // layout: 살아있는 키만 유지
+  const keys=new Set(fields.map(f=>f.key));
+  REGIONS.forEach(r=>{ state.layout[r]=state.layout[r].filter(k=>keys.has(k)); });
+  // 신규 키 처리
+  fields.forEach(f=>{ if(!placedKeys().includes(f.key)){ if(initial){ /* 기본 레이아웃 사용 */ } else { /* 미배치 트레이로 */ } } });
+  if(initial){ state.layout=JSON.parse(JSON.stringify(DEFAULT_LAYOUT)); }
+  state.fields=fields; state.comp=newComp; state.mock=newMock;
+  msg.textContent=fields.length+"개 필드 적용됨 · 새 필드는 미배치 트레이로"; msg.className="parse-msg";
+  renderMockFields(); renderCatalog(); renderStage();
+}
+
+/* ===== 01 응답값 에디터 ===== */
+function renderMockFields(){
+  const host=document.getElementById("mockFields"); host.innerHTML="";
+  state.fields.forEach(f=>{
+    const v=state.mock[f.key]; const wrap=document.createElement("div"); wrap.className="mock-item";
+    wrap.innerHTML=`<div><span class="key">${esc(f.key)}</span><span class="ty">${esc(f.gqlType)}</span></div>`;
+    let ed;
+    if(f.gqlType==="Gauge"||f.gqlType==="Confidence"){
+      ed=document.createElement("input"); ed.type="range"; ed.min="0"; ed.max="1"; ed.step="0.01"; ed.value=v; ed.className="ctrl";
+      const tag=document.createElement("span"); tag.className="range-val"; tag.textContent=Number(v).toFixed(2); wrap.querySelector("div").appendChild(tag);
+      ed.addEventListener("input",()=>{state.mock[f.key]=parseFloat(ed.value); tag.textContent=parseFloat(ed.value).toFixed(2); renderStage();});
+    } else if(["Markdown","Text","String"].includes(f.gqlType)){
+      ed=document.createElement("textarea"); ed.className="ctrl"; ed.value=v; ed.rows=3; ed.addEventListener("input",()=>{state.mock[f.key]=ed.value; renderStage();});
+    } else if(["Int","Float","Number"].includes(f.gqlType)){
+      ed=document.createElement("input"); ed.type="number"; ed.className="ctrl"; ed.value=v; ed.addEventListener("input",()=>{state.mock[f.key]=ed.value===""?null:Number(ed.value); renderStage();});
+    } else {
+      ed=document.createElement("textarea"); ed.className="ctrl"; ed.rows=4; ed.value=JSON.stringify(v,null,2);
+      ed.addEventListener("input",()=>{ try{state.mock[f.key]=JSON.parse(ed.value); ed.style.borderColor="";}catch(_){ed.style.borderColor="var(--sev-high)"; return;} renderStage(); });
+    }
+    wrap.appendChild(ed); host.appendChild(wrap);
+  });
+}
+
+/* ===== 렌더러 ===== */
+function mdToHtml(s){return esc(s).replace(/^## (.+)$/gm,"<h2>$1</h2>").replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
+  .replace(/(?:^|\n)((?:- .+(?:\n|$))+)/g,(m,b)=>"<ul>"+b.trim().split("\n").map(l=>"<li>"+l.replace(/^- /,"")+"</li>").join("")+"</ul>")
+  .split("\n").map(l=>/^<(h2|ul|li)/.test(l.trim())||l.trim()===""?l:"<p>"+l+"</p>").join("");}
+const RENDER={
+  md:v=>`<div class="md">${mdToHtml(v??"")}</div>`,
+  metric:v=>`<div class="metric"><span class="v">${esc(v??"–")}</span></div>`,
+  gauge:v=>{const n=Math.max(0,Math.min(1,Number(v)||0)); let s="low",l="낮음"; if(n>=.7){s="high";l="높음";}else if(n>=.3){s="med";l="중간";}
+    return `<div class="gauge"><div class="num"><b>${(n*100).toFixed(0)}%</b><span class="sev ${s}">위험도 ${l}</span></div><div class="meter"><span class="mark" style="left:${n*100}%"></span></div><div class="meter-scale"><span>0</span><span>0.3</span><span>0.7</span><span>1.0</span></div></div>`;},
+  conf:v=>{const n=Math.max(0,Math.min(1,Number(v)||0)); return `<div class="conf"><div class="num"><b>${(n*100).toFixed(0)}%</b><span class="sev low">신뢰도</span></div><div class="bar"><i style="width:${n*100}%"></i></div></div>`;},
+  trend:v=>{const arr=Array.isArray(v)?v.map(Number):[]; if(!arr.length)return RENDER.fb(v);
+    const mn=Math.min(...arr),mx=Math.max(...arr),rg=mx-mn||1; const pts=arr.map((y,i)=>[i/(arr.length-1)*100,38-((y-mn)/rg)*34]);
+    const d=pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");
+    return `<div class="trend"><svg viewBox="0 0 100 42" preserveAspectRatio="none"><path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.6"/>${pts.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="1.3" fill="var(--accent)"/>`).join("")}</svg><div class="cap"><span>min ${mn}</span><span>max ${mx}</span></div></div>`;},
+  table:v=>{ if(Array.isArray(v)){ if(!v.length)return RENDER.fb(v); const c=Object.keys(v[0]); return `<table class="dt"><thead><tr>${c.map(x=>`<th>${esc(x)}</th>`).join("")}</tr></thead><tbody>${v.map(r=>`<tr>${c.map(x=>`<td>${esc(r[x])}</td>`).join("")}</tr>`).join("")}</tbody></table>`;}
+    if(v&&typeof v==="object")return `<table class="dt"><tbody>${Object.entries(v).map(([k,x])=>`<tr><th>${esc(k)}</th><td>${esc(x)}</td></tr>`).join("")}</tbody></table>`; return RENDER.fb(v);},
+  lab:v=>{ if(!Array.isArray(v)||!v.length)return RENDER.fb(v); return `<table class="lab"><thead><tr><th>항목</th><th>값</th><th>참고치</th></tr></thead><tbody>${v.map(r=>`<tr><td>${esc(r.name)}</td><td class="val">${esc(r.value)} <span style="color:var(--muted);font-weight:400">${esc(r.unit||"")}</span> ${r.flag?`<span class="fl ${esc(r.flag)}">${esc(r.flag)}</span>`:""}</td><td class="ref">${esc(r.ref||"")}</td></tr>`).join("")}</tbody></table>`;},
+  alert:v=>{ if(!v||typeof v!=="object")return RENDER.fb(v); const lv=({high:"high",medium:"med",med:"med",low:"low"})[v.level]||"med"; const ic=lv==="high"?"!":lv==="med"?"!":"i"; return `<div class="alert ${lv}"><span class="ai">${ic}</span><span class="at">${esc(v.text||"")}</span></div>`;},
+  cc:v=>{ if(!v||typeof v!=="object")return RENDER.fb(v); const sm={high:["high","높음"],medium:["med","중간"],low:["low","낮음"]}; const s=sm[v.severity]||["med","–"]; return `<div class="cc"><div class="cc-top"><span class="cc-title">${esc(v.title||"")}</span><span class="sev ${s[0]}">${esc(s[1])}</span></div><div class="cc-body">${esc(v.body||"")}</div></div>`;},
+  path:v=>{ if(!Array.isArray(v)||!v.length)return RENDER.fb(v); return `<div class="path">${v.map(s=>`<div class="st ${esc(s.status||"")}"><span class="cir"></span><span class="sl">${esc(s.stage||"")}</span></div>`).join("")}</div>`;},
+  kv:v=>{ if(!v||typeof v!=="object"||Array.isArray(v))return RENDER.fb(v); return `<dl class="kv">${Object.entries(v).map(([k,x])=>`<dt>${esc(k)}</dt><dd>${esc(x)}</dd>`).join("")}</dl>`;},
+  tags:v=>{ if(!Array.isArray(v)||!v.length)return RENDER.fb(v); return `<div class="tags">${v.map(t=>`<span class="t">${esc(typeof t==="object"?(t.code||t.label):t)}</span>`).join("")}</div>`;},
+  image:v=>{const lab=(v&&v.label)||"이미지"; return `<div class="imgv"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><span class="il">${esc(lab)}</span></div>`;},
+  cites:v=>{ if(!Array.isArray(v)||!v.length)return RENDER.fb(v); return `<ul class="cites">${v.map((c,i)=>`<li><span class="idx">[${i+1}]</span><span>${esc(c.title||"")}<div class="src">${esc(c.source||"")}</div></span></li>`).join("")}</ul>`;},
+  fb:v=>`<div class="fb"><div class="fb-note">표시 방법 미정의 · 안전 폴백</div><pre>${esc(JSON.stringify(v,null,2))}</pre></div>`
+};
+function renderComponent(compName,value){const c=catByName(compName); const fn=c?RENDER[c.renderer]:null; try{return fn?fn(value):RENDER.fb(value);}catch(_){return RENDER.fb(value);}}
+
+/* ===== 02 WYSIWYG 스테이지 ===== */
+let dragKey=null;
+function blockHTML(key){
+  const f=state.fields.find(x=>x.key===key); if(!f)return "";
+  const compName=state.comp[key]; const val=state.mock[key];
+  const cands=CATALOG.filter(c=>c.accepts.includes(f.gqlType)||c.accepts.includes("*"));
+  const compBtns=cands.map(c=>`<button class="${c.name===compName?'cur':''}" data-act="comp" data-key="${key}" data-val="${c.name}">${c.name}</button>`).join("");
+  const moveBtns=REGIONS.map(r=>`<button data-act="move" data-key="${key}" data-val="${r}">${r}</button>`).join("");
+  return `<div class="blk" draggable="true" data-key="${key}">
+    <div class="blk-head">
+      <span class="grip">⠿</span>
+      <span class="blk-key">${esc(key)}</span>
+      <span class="blk-comp">${esc(compName)}</span>
+      <span class="prov">근거</span>
+      <details class="menu"><summary>⋯</summary><div class="menu-panel">
+        <div class="menu-sec">how · 컴포넌트</div><div class="menu-opts">${compBtns}</div>
+        <div class="menu-sec">where · 영역 이동</div><div class="menu-opts">${moveBtns}</div>
+        <div class="menu-sec">제거</div><div class="menu-opts"><button class="danger" data-act="remove" data-key="${key}">미배치로 보내기</button></div>
+      </div></details>
+    </div>
+    <div class="blk-body">${renderComponent(compName,val)}</div>
+  </div>`;
+}
+function zoneHTML(region,extraClass){
+  const keys=state.layout[region]||[]; const inner=keys.length?keys.map(blockHTML).join(""):`<div class="zone empty">여기로 끌어다 놓기</div>`;
+  return `<div class="zone ${extraClass||''} stack" data-region="${region}">${inner}</div>`;
+}
+function renderStage(){
+  const frame=document.getElementById("frame");
+  const mobile = state.viewport==="mobile";
+  frame.className = "frame"+(mobile?" mobile":"");
+  const unplaced=state.fields.filter(f=>!placedKeys().includes(f.key));
+  const trayChips = unplaced.length
+    ? unplaced.map(f=>`<span class="chip" draggable="true" data-key="${f.key}">${esc(f.key)}<span class="ty">${esc(f.gqlType)}</span></span>`).join("")
+    : `<span class="tray-empty">모든 필드가 배치됨 — 블록을 여기로 끌면 다시 미배치로 보냅니다</span>`;
+
+  const sbRule = state.rules.sidebar;
+  let body = `<div class="tray" data-region="tray"><div class="tray-lab">미배치 필드</div><div class="tray-chips">${trayChips}</div></div>`;
+  body += `<div class="region"><p class="region-tag">header</p>${zoneHTML("header")}</div>`;
+
+  if(mobile && sbRule==="below"){
+    body += `<div class="region"><p class="region-tag">main</p>${zoneHTML("main")}</div>`;
+    body += `<div class="region"><p class="region-tag">sidebar <span class="badge">규칙: main 아래</span></p>${zoneHTML("sidebar")}</div>`;
+  } else if(mobile && sbRule==="hide"){
+    body += `<div class="region"><p class="region-tag">main</p>${zoneHTML("main")}</div>`;
+    body += `<div class="region"><p class="region-tag">sidebar <span class="badge">규칙: 모바일 숨김</span></p>${zoneHTML("sidebar","zone-hidden")}</div>`;
+  } else {
+    body += `<div class="region"><p class="region-tag">main · sidebar</p><div class="dash-grid">${zoneHTML("main")}${zoneHTML("sidebar")}</div></div>`;
+  }
+  frame.innerHTML=body;
+  wireDnD(); wireMenus();
+  if(document.getElementById("drawer").classList.contains("open")) fillContract();
+}
+
+function wireDnD(){
+  document.querySelectorAll('.blk[draggable], .chip[draggable]').forEach(el=>{
+    el.addEventListener("dragstart",e=>{dragKey=el.dataset.key; e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain",dragKey); el.classList.add("dragging");});
+    el.addEventListener("dragend",()=>{dragKey=null; el.classList.remove("dragging"); document.querySelectorAll(".hot").forEach(z=>z.classList.remove("hot"));});
+  });
+  document.querySelectorAll('[data-region]').forEach(zone=>{
+    zone.addEventListener("dragover",e=>{e.preventDefault(); e.dataTransfer.dropEffect="move"; zone.classList.add("hot");});
+    zone.addEventListener("dragleave",e=>{ if(!zone.contains(e.relatedTarget)) zone.classList.remove("hot"); });
+    zone.addEventListener("drop",e=>{
+      e.preventDefault(); zone.classList.remove("hot"); if(!dragKey)return;
+      const region=zone.dataset.region;
+      if(region==="tray"){ placeKey(dragKey,"tray",0); renderStage(); return; }
+      const idx=insertIndex(zone,e.clientY); placeKey(dragKey,region,idx); renderStage();
+    });
+  });
+}
+function insertIndex(zone,y){
+  const blocks=[...zone.querySelectorAll(".blk:not(.dragging)")];
+  for(let i=0;i<blocks.length;i++){ const r=blocks[i].getBoundingClientRect(); if(y < r.top + r.height/2) return i; }
+  return blocks.length;
+}
+function placeKey(key,region,index){
+  REGIONS.forEach(r=>{ state.layout[r]=state.layout[r].filter(k=>k!==key); });
+  if(region==="tray") return;
+  const arr=state.layout[region]; const i=Math.max(0,Math.min(index,arr.length)); arr.splice(i,0,key);
+}
+function wireMenus(){
+  document.querySelectorAll('[data-act]').forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const {act,key,val}=btn.dataset;
+      if(act==="comp"){ state.comp[key]=val; }
+      else if(act==="move"){ placeKey(key,val,state.layout[val].length); }
+      else if(act==="remove"){ placeKey(key,"tray",0); }
+      renderStage();
+    });
+  });
+}
+
+/* ===== 03 카탈로그 / 규칙 ===== */
+function renderCatalog(){
+  const host=document.getElementById("catList"); host.innerHTML="";
+  CATALOG.forEach(c=>{
+    const d=document.createElement("div"); d.className="cat-item";
+    d.innerHTML=`<div class="cn">${esc(c.name)}${c.custom?'<span class="custom">커스텀</span>':''}</div><div class="cl">${esc(c.label)}</div>
+      <div class="acc">${c.accepts.map(a=>`<span class="a">${esc(a)}</span>`).join("")}</div>`;
+    host.appendChild(d);
+  });
+  const base=document.getElementById("regBase");
+  base.innerHTML=`<option value="">기반 렌더러 선택</option>`+CATALOG.filter(c=>c.name!=="FallbackBlock").map(c=>`<option value="${c.renderer}">${c.name} 렌더러</option>`).join("");
+}
+function addCustomComponent(){
+  const name=document.getElementById("regName").value.trim();
+  const base=document.getElementById("regBase").value;
+  const accepts=document.getElementById("regAccepts").value.trim();
+  if(!name||!base||!accepts){ alert("이름·기반 렌더러·허용 타입을 모두 입력하세요."); return; }
+  if(catByName(name)){ alert("이미 존재하는 컴포넌트 이름입니다."); return; }
+  CATALOG.splice(CATALOG.length-1,0,{name,label:"커스텀 · "+accepts,renderer:base,accepts:[accepts],custom:true});
+  document.getElementById("regName").value=""; document.getElementById("regAccepts").value=""; document.getElementById("regBase").value="";
+  renderCatalog(); renderStage();
+}
+
+/* ===== 계약 JSON ===== */
+function buildDisplay(){
+  const bindings={};
+  REGIONS.forEach(r=>state.layout[r].forEach((k,i)=>{ bindings[k]={region:r, component:state.comp[k], order:i+1}; }));
+  return {layout:"dashboard", regions:REGIONS, responsive:{breakpoint:state.rules.breakpoint, sidebar:state.rules.sidebar}, bindings};
+}
+function buildValue(){const o={}; state.fields.forEach(f=>o[f.key]={type:f.gqlType, value:state.mock[f.key], meta:{provenance:"evt_xxx"}}); return o;}
+function fillContract(){ document.getElementById("displayContract").textContent=JSON.stringify(buildDisplay(),null,2); document.getElementById("valueContract").textContent=JSON.stringify(buildValue(),null,2); }
+function openDrawer(){ fillContract(); document.getElementById("drawer").classList.add("open"); document.getElementById("drawer").setAttribute("aria-hidden","false"); document.getElementById("drawerBack").classList.add("open"); }
+function closeDrawer(){ document.getElementById("drawer").classList.remove("open"); document.getElementById("drawer").setAttribute("aria-hidden","true"); document.getElementById("drawerBack").classList.remove("open"); }
+
+/* ===== 부팅 ===== */
+function boot(){
+  document.getElementById("schema").value=DEFAULT_SCHEMA;
+  document.getElementById("btnParse").addEventListener("click",()=>applySchema(false));
+  document.getElementById("btnReset").addEventListener("click",()=>{ state={fields:[],mock:{},comp:{},layout:{header:[],main:[],sidebar:[]},rules:{breakpoint:768,sidebar:"below"},viewport:"desktop"}; document.querySelectorAll(".vp-toggle button").forEach(b=>b.classList.toggle("on",b.dataset.vp==="desktop")); document.getElementById("schema").value=DEFAULT_SCHEMA; applySchema(true); });
+  document.getElementById("btnContract").addEventListener("click",openDrawer);
+  document.getElementById("drawerClose").addEventListener("click",closeDrawer);
+  document.getElementById("drawerBack").addEventListener("click",closeDrawer);
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDrawer();});
+  document.querySelectorAll(".vp-toggle button").forEach(b=>b.addEventListener("click",()=>{ state.viewport=b.dataset.vp; document.querySelectorAll(".vp-toggle button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); renderStage(); }));
+  document.getElementById("regAdd").addEventListener("click",addCustomComponent);
+  document.getElementById("ruleBp").addEventListener("input",e=>{ state.rules.breakpoint=Number(e.target.value)||768; if(document.getElementById("drawer").classList.contains("open"))fillContract(); });
+  document.getElementById("ruleSb").addEventListener("change",e=>{ state.rules.sidebar=e.target.value; renderStage(); });
+  applySchema(true);
+}
+boot();
+</script>

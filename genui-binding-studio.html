@@ -1,0 +1,622 @@
+<!--
+  GenUI Binding Studio — 목업
+  응답값(GraphQL) 정의 → 필드 화면 매핑(where/how) → 라이브 프리뷰
+  자체완결(외부 네트워크/폰트 없음), 상태는 메모리에만 보관.
+  렌더링되는 임상 값은 모두 설명용 예시(mock) 데이터입니다.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GenUI Binding Studio</title>
+<style>
+  :root{
+    --ink:#13202B; --ink-soft:#3A4C5A; --muted:#69808F;
+    --canvas:#E9EEF2; --paper:#FFFFFF; --line:#D7E0E6; --line-soft:#E7EDF1;
+    --code-bg:#0E1B27; --code-line:#1E3142; --code-text:#C7D6E0; --code-dim:#6E899B;
+    --accent:#0E7C86; --accent-bright:#13A4A2; --accent-wash:#E3F2F1;
+    --hi:#FFF4D6;            /* hover linkage */
+    --sev-high:#D4493C; --sev-med:#C77A12; --sev-low:#2E8B57;
+    --radius:10px;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:var(--sans); color:var(--ink); background:var(--canvas);
+    font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- shell ---------- */
+  .app{display:flex; flex-direction:column; height:100vh; min-height:0}
+  header.bar{
+    display:flex; align-items:center; gap:16px;
+    padding:12px 20px; background:var(--paper); border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex; align-items:baseline; gap:10px; margin-right:auto}
+  .brand .logo{
+    font-family:var(--mono); font-weight:600; letter-spacing:.04em;
+    color:var(--paper); background:var(--ink); padding:4px 8px; border-radius:6px; font-size:12px;
+  }
+  .brand h1{font-size:15px; font-weight:650; margin:0; letter-spacing:-.01em}
+  .brand .sub{color:var(--muted); font-size:12.5px}
+  .bar .btn{font-family:var(--sans)}
+  .btn{
+    border:1px solid var(--line); background:var(--paper); color:var(--ink-soft);
+    padding:7px 13px; border-radius:8px; font-size:13px; cursor:pointer; font-weight:550;
+  }
+  .btn:hover{border-color:var(--accent); color:var(--accent)}
+  .btn:focus-visible{outline:2px solid var(--accent-bright); outline-offset:2px}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn.primary:hover{background:var(--accent-bright); border-color:var(--accent-bright); color:#fff}
+
+  /* ---------- columns ---------- */
+  .cols{display:flex; flex:1; min-height:0}
+  .col{display:flex; flex-direction:column; min-height:0; border-right:1px solid var(--line)}
+  .col.define{width:340px; flex:none}
+  .col.map{width:380px; flex:none}
+  .col.preview{flex:1; min-width:0; border-right:none}
+
+  .col-head{
+    display:flex; align-items:center; gap:10px;
+    padding:13px 16px 12px; background:var(--paper); border-bottom:1px solid var(--line);
+  }
+  .step-no{
+    font-family:var(--mono); font-size:12px; font-weight:600; color:var(--accent);
+    border:1px solid var(--accent); border-radius:6px; padding:2px 7px; letter-spacing:.02em;
+  }
+  .col-head h2{font-size:13.5px; margin:0; font-weight:650; letter-spacing:-.01em}
+  .col-head .hint{margin-left:auto; color:var(--muted); font-size:11.5px}
+  .col-body{flex:1; min-height:0; overflow:auto; padding:14px 16px}
+  .col.define .col-body, .col.map .col-body{background:var(--canvas)}
+  .col.preview .col-body{background:var(--canvas); padding:18px 20px}
+
+  .field-label{
+    font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase;
+    letter-spacing:.07em; margin:0 0 6px;
+  }
+  /* ---------- code editor (graphql) ---------- */
+  .code-wrap{background:var(--code-bg); border-radius:var(--radius); overflow:hidden; border:1px solid var(--code-line)}
+  .code-wrap .code-top{
+    display:flex; align-items:center; gap:6px; padding:8px 11px; border-bottom:1px solid var(--code-line);
+    font-family:var(--mono); font-size:11px; color:var(--code-dim);
+  }
+  .dot{width:9px;height:9px;border-radius:50%}
+  textarea.code{
+    width:100%; border:0; resize:vertical; min-height:188px;
+    background:transparent; color:var(--code-text); font-family:var(--mono); font-size:12.5px;
+    line-height:1.65; padding:12px; outline:none; tab-size:2;
+  }
+  .apply-row{display:flex; gap:8px; margin-top:10px; align-items:center}
+  .parse-msg{font-size:12px; color:var(--muted)}
+  .parse-msg.err{color:var(--sev-high)}
+
+  /* ---------- mock data editors ---------- */
+  .mock-list{margin-top:20px}
+  .mock-item{margin-bottom:14px}
+  .mock-item .key{font-family:var(--mono); font-size:12.5px; font-weight:600; color:var(--ink)}
+  .mock-item .ty{font-family:var(--mono); font-size:11px; color:var(--accent); margin-left:6px}
+  .ctrl{
+    width:100%; margin-top:6px; border:1px solid var(--line); border-radius:8px;
+    padding:8px 10px; font-size:13px; font-family:var(--sans); background:var(--paper); color:var(--ink);
+  }
+  textarea.ctrl{font-family:var(--mono); font-size:12px; line-height:1.55; resize:vertical; min-height:62px}
+  .ctrl:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-wash)}
+  input[type=range].ctrl{padding:0; height:26px}
+  .range-val{font-family:var(--mono); font-size:12px; color:var(--accent); float:right}
+
+  /* ---------- mapping rows ---------- */
+  .map-row{
+    background:var(--paper); border:1px solid var(--line); border-radius:var(--radius);
+    padding:12px; margin-bottom:11px; transition:border-color .12s, box-shadow .12s;
+  }
+  .map-row.hot{border-color:var(--accent-bright); box-shadow:0 0 0 3px var(--accent-wash)}
+  .map-row .row-top{display:flex; align-items:center; gap:8px; margin-bottom:10px}
+  .chip{
+    font-family:var(--mono); font-size:12px; font-weight:600; color:var(--accent);
+    background:var(--accent-wash); border-radius:6px; padding:3px 8px;
+  }
+  .chip .ty{color:var(--muted); font-weight:500; margin-left:5px}
+  .map-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px 10px}
+  .map-grid .full{grid-column:1 / -1}
+  .map-grid label{display:block}
+  .lab{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px; font-weight:600}
+  select.sel, input.num{
+    width:100%; border:1px solid var(--line); border-radius:7px; padding:6px 8px;
+    font-size:12.5px; background:var(--paper); color:var(--ink); font-family:var(--sans);
+  }
+  select.sel{font-family:var(--mono); font-size:12px}
+  select.sel:focus, input.num:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-wash)}
+  .chk{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft); margin-top:2px}
+  .chk input{accent-color:var(--accent)}
+  .empty-note{color:var(--muted); font-size:13px; text-align:center; padding:30px 10px}
+
+  /* ---------- preview dashboard ---------- */
+  .dash{max-width:880px; margin:0 auto}
+  .region{margin-bottom:16px}
+  .region-tag{
+    font-family:var(--mono); font-size:10.5px; color:var(--muted); letter-spacing:.06em;
+    text-transform:uppercase; margin:0 2px 7px; display:flex; align-items:center; gap:8px;
+  }
+  .region-tag::after{content:""; flex:1; height:1px; background:var(--line)}
+  .dash-grid{display:grid; grid-template-columns:1.9fr 1fr; gap:16px; align-items:start}
+  .stack{display:flex; flex-direction:column; gap:14px}
+
+  .blk{
+    background:var(--paper); border:1px solid var(--line); border-radius:var(--radius);
+    overflow:hidden; transition:border-color .12s, box-shadow .12s;
+  }
+  .blk.hot{border-color:var(--accent-bright); box-shadow:0 0 0 3px var(--accent-wash)}
+  .blk-head{
+    display:flex; align-items:center; gap:8px; padding:8px 13px; border-bottom:1px solid var(--line-soft);
+  }
+  .blk-key{font-family:var(--mono); font-size:11.5px; font-weight:600; color:var(--ink-soft)}
+  .blk-comp{font-family:var(--mono); font-size:10.5px; color:var(--muted); margin-left:auto}
+  .prov{
+    font-size:10px; font-family:var(--mono); color:var(--accent); border:1px solid var(--accent-wash);
+    background:var(--accent-wash); border-radius:5px; padding:1px 6px;
+  }
+  .blk-body{padding:13px}
+
+  /* renderers */
+  .md h2{font-size:15px; margin:.1em 0 .4em; letter-spacing:-.01em}
+  .md strong{color:var(--ink)}
+  .md ul{margin:.3em 0; padding-left:18px}
+  .md p{margin:.35em 0; color:var(--ink-soft)}
+  .metric{display:flex; align-items:baseline; gap:8px}
+  .metric .v{font-size:30px; font-weight:680; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+  .metric .u{color:var(--muted); font-size:13px}
+  table.dt{width:100%; border-collapse:collapse; font-size:12.5px}
+  table.dt th,table.dt td{text-align:left; padding:6px 9px; border-bottom:1px solid var(--line-soft)}
+  table.dt th{color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em}
+  table.dt td{font-variant-numeric:tabular-nums}
+  table.dt tr:last-child td{border-bottom:none}
+  /* gauge */
+  .gauge .num{display:flex; align-items:baseline; gap:8px; margin-bottom:9px}
+  .gauge .num b{font-size:26px; font-weight:680; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+  .sev{font-size:11px; font-weight:650; padding:2px 8px; border-radius:20px}
+  .sev.high{color:var(--sev-high); background:#FBE9E7}
+  .sev.med{color:var(--sev-med); background:#FBF1E0}
+  .sev.low{color:var(--sev-low); background:#E5F4EC}
+  .meter{position:relative; height:12px; border-radius:7px; overflow:hidden;
+    background:linear-gradient(90deg,#3FA76B 0%,#3FA76B 30%,#E0B23C 30%,#E0B23C 70%,#D4493C 70%,#D4493C 100%)}
+  .meter .mark{position:absolute; top:-3px; width:3px; height:18px; background:var(--ink); border-radius:2px; transform:translateX(-50%)}
+  .meter-scale{display:flex; justify-content:space-between; font-family:var(--mono); font-size:10px; color:var(--muted); margin-top:4px}
+  /* clinical card */
+  .cc{display:flex; flex-direction:column; gap:7px}
+  .cc .cc-top{display:flex; align-items:center; gap:8px}
+  .cc .cc-title{font-weight:650; font-size:14px}
+  .cc .cc-body{color:var(--ink-soft); font-size:13px}
+  /* citations */
+  .cites{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px}
+  .cites li{display:flex; gap:9px; font-size:12.5px}
+  .cites .idx{font-family:var(--mono); color:var(--accent); font-weight:600}
+  .cites .src{color:var(--muted); font-size:11.5px}
+  /* fallback */
+  .fb{border:1px dashed var(--line); border-radius:8px; padding:11px; background:#FBFCFD}
+  .fb .fb-note{font-size:11.5px; color:var(--sev-med); margin-bottom:7px; font-weight:600}
+  .fb pre{margin:0; font-family:var(--mono); font-size:11px; color:var(--ink-soft); white-space:pre-wrap; word-break:break-word}
+
+  /* contract drawer */
+  .drawer-back{position:fixed; inset:0; background:rgba(14,27,39,.45); display:none; z-index:40}
+  .drawer-back.open{display:block}
+  .drawer{
+    position:fixed; top:0; right:0; height:100%; width:min(560px,92vw); background:var(--code-bg);
+    transform:translateX(100%); transition:transform .2s ease; z-index:50; display:flex; flex-direction:column;
+  }
+  .drawer.open{transform:translateX(0)}
+  .drawer-head{display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--code-line)}
+  .drawer-head h3{margin:0; font-size:14px; color:#fff; font-weight:600}
+  .drawer-head .x{margin-left:auto; background:none; border:none; color:var(--code-dim); font-size:20px; cursor:pointer; line-height:1}
+  .drawer-head .x:hover{color:#fff}
+  .drawer-body{flex:1; overflow:auto; padding:16px 18px}
+  .drawer-body h4{font-family:var(--mono); font-size:11px; color:var(--accent-bright); text-transform:uppercase; letter-spacing:.06em; margin:0 0 8px}
+  .drawer-body h4:not(:first-child){margin-top:22px}
+  .drawer-body pre{
+    margin:0; background:#0A141D; border:1px solid var(--code-line); border-radius:8px; padding:13px;
+    font-family:var(--mono); font-size:11.5px; line-height:1.6; color:var(--code-text); white-space:pre-wrap; word-break:break-word;
+  }
+  .note-illus{font-size:11px; color:var(--muted); margin-top:14px; text-align:center}
+
+  @media (max-width:1080px){
+    .cols{flex-direction:column; overflow:auto}
+    .col{width:auto !important; flex:none; border-right:none; border-bottom:1px solid var(--line)}
+    .col-body{overflow:visible}
+    .dash-grid{grid-template-columns:1fr}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand">
+      <span class="logo">GenUI</span>
+      <h1>Binding Studio</h1>
+      <span class="sub">응답값 정의 → 화면 매핑 → 프리뷰</span>
+    </div>
+    <button class="btn" id="btnContract">계약 JSON 보기</button>
+    <button class="btn" id="btnReset">초기화</button>
+  </header>
+
+  <div class="cols">
+    <!-- 01 정의 -->
+    <section class="col define">
+      <div class="col-head">
+        <span class="step-no">01</span>
+        <h2>응답값 정의</h2>
+        <span class="hint">GraphQL</span>
+      </div>
+      <div class="col-body">
+        <p class="field-label">응답 스키마 (type별 field: Type)</p>
+        <div class="code-wrap">
+          <div class="code-top">
+            <span class="dot" style="background:#E0726A"></span>
+            <span class="dot" style="background:#E0B23C"></span>
+            <span class="dot" style="background:#5FB37E"></span>
+            <span style="margin-left:6px">response.graphql</span>
+          </div>
+          <textarea class="code" id="schema" spellcheck="false"></textarea>
+        </div>
+        <div class="apply-row">
+          <button class="btn primary" id="btnParse">필드 적용</button>
+          <span class="parse-msg" id="parseMsg"></span>
+        </div>
+
+        <div class="mock-list" id="mockList">
+          <p class="field-label">응답값 (예시 데이터)</p>
+          <div id="mockFields"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 매핑 -->
+    <section class="col map">
+      <div class="col-head">
+        <span class="step-no">02</span>
+        <h2>화면 매핑</h2>
+        <span class="hint">where · how</span>
+      </div>
+      <div class="col-body" id="mapBody"></div>
+    </section>
+
+    <!-- 03 프리뷰 -->
+    <section class="col preview">
+      <div class="col-head">
+        <span class="step-no">03</span>
+        <h2>라이브 프리뷰</h2>
+        <span class="hint">dashboard</span>
+      </div>
+      <div class="col-body">
+        <div class="dash" id="dash"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- contract drawer -->
+<div class="drawer-back" id="drawerBack"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <h3>생성된 계약 JSON</h3>
+    <button class="x" id="drawerClose" aria-label="닫기">&times;</button>
+  </div>
+  <div class="drawer-body">
+    <h4>표시 계약 (개발자 소유 · 정적)</h4>
+    <pre id="displayContract"></pre>
+    <h4>응답값 계약 (에이전트 출력 · 값만)</h4>
+    <pre id="valueContract"></pre>
+  </div>
+</aside>
+
+<script>
+"use strict";
+
+/* ---------- 컴포넌트 레지스트리 (type → 기본 컴포넌트) ---------- */
+const TYPE_TO_COMPONENT = {
+  Markdown:"MarkdownBlock", Gauge:"RiskGauge", Table:"DataTable",
+  ClinicalCard:"ClinicalCard", CitationList:"CitationList",
+  Text:"TextBlock", String:"TextBlock",
+  Int:"MetricBlock", Float:"MetricBlock", Number:"MetricBlock"
+};
+const COMPONENTS = ["MarkdownBlock","RiskGauge","DataTable","ClinicalCard","CitationList","TextBlock","MetricBlock","FallbackBlock"];
+const REGIONS = ["header","main","sidebar"];
+
+/* 타입별 기본 region 휴리스틱 */
+function defaultRegion(t){
+  if(t==="Markdown") return "header";
+  if(t==="Gauge"||t==="CitationList") return "sidebar";
+  return "main";
+}
+/* 타입별 기본 예시값 */
+function defaultMock(t){
+  switch(t){
+    case "Markdown": return "## 판독 요약\n환자는 현재 **안정적** 상태이나, 다음 항목에 대한 추적 관찰이 필요합니다.\n- 호흡 패턴 모니터링\n- 6시간 후 재평가";
+    case "Gauge": return 0.72;
+    case "Table": return {"호흡수":18,"심박수":92,"체온(℃)":37.8,"SpO₂(%)":96};
+    case "ClinicalCard": return {title:"추적 관찰 권고", body:"악화 징후 시 신속 대응팀 호출을 권고합니다.", severity:"medium"};
+    case "CitationList": return [{title:"V.Doc 분석 결과 #A-1203", source:"내부 모델 출력"},{title:"바이탈 추세 8h", source:"ADP 스트림"}];
+    case "Int": case "Float": case "Number": return 42;
+    default: return "샘플 텍스트";
+  }
+}
+
+/* ---------- 상태 ---------- */
+const DEFAULT_SCHEMA =
+`type Response {
+  summary: Markdown
+  riskScore: Gauge
+  vitals: Table
+  recommendation: ClinicalCard
+  sources: CitationList
+}`;
+
+let state = { fields:[], mock:{}, bindings:{} };
+
+/* ---------- 유틸 ---------- */
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
+function isEmpty(v){
+  if(v==null) return true;
+  if(typeof v==="string") return v.trim()==="";
+  if(Array.isArray(v)) return v.length===0;
+  if(typeof v==="object") return Object.keys(v).length===0;
+  return false;
+}
+
+/* ---------- GraphQL 파서 ---------- */
+function parseSchema(text){
+  // 첫 번째 type 블록을 사용
+  const m = text.match(/type\s+\w+\s*\{([\s\S]*?)\}/);
+  if(!m) throw new Error("type 블록을 찾지 못했습니다");
+  const body = m[1];
+  const fields = [];
+  body.split("\n").forEach(line=>{
+    const fm = line.match(/^\s*(\w+)\s*:\s*([\[\]\w!]+)/);
+    if(fm){
+      const key = fm[1];
+      const ty = fm[2].replace(/[\[\]!]/g,"");   // [Type!]! → Type
+      fields.push({key, gqlType:ty});
+    }
+  });
+  if(!fields.length) throw new Error("필드가 없습니다");
+  return fields;
+}
+
+function applySchema(){
+  const text = document.getElementById("schema").value;
+  const msg = document.getElementById("parseMsg");
+  let fields;
+  try{ fields = parseSchema(text); }
+  catch(e){ msg.textContent = "파싱 실패: "+e.message; msg.className="parse-msg err"; return; }
+
+  // 기존 binding/mock는 유지(키가 살아있으면), 신규는 기본값
+  const newBindings={}, newMock={};
+  fields.forEach((f,i)=>{
+    const known = TYPE_TO_COMPONENT[f.gqlType];
+    newBindings[f.key] = state.bindings[f.key] || {
+      region: defaultRegion(f.gqlType),
+      component: known || "FallbackBlock",
+      order: i+1,
+      hideIfEmpty: false
+    };
+    newMock[f.key] = (f.key in state.mock) ? state.mock[f.key] : defaultMock(f.gqlType);
+  });
+  state.fields = fields; state.bindings = newBindings; state.mock = newMock;
+  msg.textContent = fields.length+"개 필드 적용됨"; msg.className="parse-msg";
+  renderMockFields(); renderMapping(); renderPreview();
+}
+
+/* ---------- 01 응답값 에디터 ---------- */
+function renderMockFields(){
+  const host = document.getElementById("mockFields");
+  host.innerHTML = "";
+  state.fields.forEach(f=>{
+    const v = state.mock[f.key];
+    const wrap = document.createElement("div");
+    wrap.className="mock-item";
+    wrap.innerHTML = `<div><span class="key">${esc(f.key)}</span><span class="ty">${esc(f.gqlType)}</span></div>`;
+
+    let editor;
+    if(f.gqlType==="Gauge"){
+      editor=document.createElement("input");
+      editor.type="range"; editor.min="0"; editor.max="1"; editor.step="0.01";
+      editor.value=v; editor.className="ctrl";
+      const valTag=document.createElement("span"); valTag.className="range-val"; valTag.textContent=Number(v).toFixed(2);
+      editor.addEventListener("input",()=>{ state.mock[f.key]=parseFloat(editor.value); valTag.textContent=parseFloat(editor.value).toFixed(2); renderPreview(); });
+      const lab=wrap.querySelector("div"); lab.appendChild(valTag);
+    } else if(f.gqlType==="Markdown"||f.gqlType==="Text"||f.gqlType==="String"){
+      editor=document.createElement("textarea"); editor.className="ctrl"; editor.value=v; editor.rows=3;
+      editor.addEventListener("input",()=>{ state.mock[f.key]=editor.value; renderPreview(); });
+    } else if(["Int","Float","Number"].includes(f.gqlType)){
+      editor=document.createElement("input"); editor.type="number"; editor.className="ctrl"; editor.value=v;
+      editor.addEventListener("input",()=>{ state.mock[f.key]=editor.value===""?null:Number(editor.value); renderPreview(); });
+    } else { // 복합 타입은 JSON
+      editor=document.createElement("textarea"); editor.className="ctrl"; editor.rows=4;
+      editor.value=JSON.stringify(v,null,2);
+      editor.addEventListener("input",()=>{
+        try{ state.mock[f.key]=JSON.parse(editor.value); editor.style.borderColor=""; }
+        catch(_){ editor.style.borderColor="var(--sev-high)"; return; }
+        renderPreview();
+      });
+    }
+    editor.id="mock-"+f.key;
+    wrap.appendChild(editor);
+    host.appendChild(wrap);
+  });
+}
+
+/* ---------- 02 매핑 에디터 ---------- */
+function renderMapping(){
+  const host = document.getElementById("mapBody");
+  host.innerHTML="";
+  if(!state.fields.length){ host.innerHTML='<p class="empty-note">필드를 적용하면 매핑이 표시됩니다.</p>'; return; }
+  state.fields.forEach(f=>{
+    const b = state.bindings[f.key];
+    const row=document.createElement("div");
+    row.className="map-row"; row.dataset.key=f.key;
+    row.innerHTML = `
+      <div class="row-top"><span class="chip">${esc(f.key)}<span class="ty">${esc(f.gqlType)}</span></span></div>
+      <div class="map-grid">
+        <label><div class="lab">where · region</div>
+          <select class="sel" data-prop="region">${REGIONS.map(r=>`<option ${b.region===r?"selected":""}>${r}</option>`).join("")}</select></label>
+        <label><div class="lab">how · component</div>
+          <select class="sel" data-prop="component">${COMPONENTS.map(c=>`<option ${b.component===c?"selected":""}>${c}</option>`).join("")}</select></label>
+        <label><div class="lab">order</div>
+          <input class="num" type="number" data-prop="order" value="${b.order}" min="1"></label>
+        <label class="chk"><input type="checkbox" data-prop="hideIfEmpty" ${b.hideIfEmpty?"checked":""}> 빈 값이면 숨김</label>
+      </div>`;
+    row.querySelectorAll("[data-prop]").forEach(el=>{
+      const prop=el.dataset.prop;
+      el.addEventListener("change",()=>{
+        if(prop==="order") b.order=Number(el.value)||1;
+        else if(prop==="hideIfEmpty") b.hideIfEmpty=el.checked;
+        else b[prop]=el.value;
+        renderPreview();
+      });
+    });
+    // 호버 연동
+    row.addEventListener("mouseenter",()=>setHot(f.key,true));
+    row.addEventListener("mouseleave",()=>setHot(f.key,false));
+    host.appendChild(row);
+  });
+}
+
+/* ---------- 컴포넌트 렌더러 ---------- */
+function mdToHtml(s){
+  return esc(s)
+    .replace(/^## (.+)$/gm,"<h2>$1</h2>")
+    .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
+    .replace(/(?:^|\n)((?:- .+(?:\n|$))+)/g,(m,b)=>"<ul>"+b.trim().split("\n").map(l=>"<li>"+l.replace(/^- /,"")+"</li>").join("")+"</ul>")
+    .split("\n").map(l=>/^<(h2|ul|li)/.test(l.trim())||l.trim()===""?l:"<p>"+l+"</p>").join("");
+}
+function renderComponent(comp, value){
+  switch(comp){
+    case "MarkdownBlock": return `<div class="md">${mdToHtml(value??"")}</div>`;
+    case "TextBlock":     return `<div class="md"><p>${esc(value??"")}</p></div>`;
+    case "MetricBlock":   return `<div class="metric"><span class="v">${esc(value??"–")}</span></div>`;
+    case "RiskGauge":     return renderGauge(value);
+    case "DataTable":     return renderTable(value);
+    case "ClinicalCard":  return renderClinical(value);
+    case "CitationList":  return renderCitations(value);
+    default:              return renderFallback(value);
+  }
+}
+function renderGauge(v){
+  const n = Math.max(0,Math.min(1, Number(v)||0));
+  let sev="low",label="낮음"; if(n>=0.7){sev="high";label="높음";} else if(n>=0.3){sev="med";label="중간";}
+  return `<div class="gauge">
+    <div class="num"><b>${(n*100).toFixed(0)}%</b><span class="sev ${sev}">위험도 ${label}</span></div>
+    <div class="meter"><span class="mark" style="left:${n*100}%"></span></div>
+    <div class="meter-scale"><span>0</span><span>0.3</span><span>0.7</span><span>1.0</span></div>
+  </div>`;
+}
+function renderTable(v){
+  if(Array.isArray(v)){
+    if(!v.length) return renderFallback(v);
+    const cols=Object.keys(v[0]);
+    return `<table class="dt"><thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join("")}</tr></thead>
+      <tbody>${v.map(r=>`<tr>${cols.map(c=>`<td>${esc(r[c])}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  }
+  if(v && typeof v==="object"){
+    return `<table class="dt"><tbody>${Object.entries(v).map(([k,val])=>`<tr><th>${esc(k)}</th><td>${esc(val)}</td></tr>`).join("")}</tbody></table>`;
+  }
+  return renderFallback(v);
+}
+function renderClinical(v){
+  if(!v||typeof v!=="object") return renderFallback(v);
+  const sevMap={high:["high","높음"],medium:["med","중간"],low:["low","낮음"]};
+  const s=sevMap[v.severity]||["med","–"];
+  return `<div class="cc"><div class="cc-top">
+      <span class="cc-title">${esc(v.title||"")}</span>
+      <span class="sev ${s[0]}">${esc(s[1])}</span></div>
+    <div class="cc-body">${esc(v.body||"")}</div></div>`;
+}
+function renderCitations(v){
+  if(!Array.isArray(v)||!v.length) return renderFallback(v);
+  return `<ul class="cites">${v.map((c,i)=>`<li><span class="idx">[${i+1}]</span>
+    <span>${esc(c.title||"")}<div class="src">${esc(c.source||"")}</div></span></li>`).join("")}</ul>`;
+}
+function renderFallback(v){
+  return `<div class="fb"><div class="fb-note">표시 방법이 정의되지 않음 · 안전 폴백</div>
+    <pre>${esc(JSON.stringify(v,null,2))}</pre></div>`;
+}
+
+/* ---------- 03 프리뷰 ---------- */
+function renderPreview(){
+  const dash=document.getElementById("dash");
+  dash.innerHTML="";
+  if(!state.fields.length){ dash.innerHTML='<p class="empty-note">필드를 적용하면 프리뷰가 표시됩니다.</p>'; return; }
+
+  const buckets={header:[],main:[],sidebar:[]};
+  state.fields.forEach(f=>{
+    const b=state.bindings[f.key]; const val=state.mock[f.key];
+    if(b.hideIfEmpty && isEmpty(val)) return;
+    const comp = COMPONENTS.includes(b.component)? b.component : "FallbackBlock";
+    buckets[b.region]?.push({key:f.key, order:b.order??0, comp, val});
+  });
+  Object.values(buckets).forEach(arr=>arr.sort((a,b)=>a.order-b.order));
+
+  const blk=(it)=>`<div class="blk" data-key="${it.key}"
+      onmouseenter="setHot('${it.key}',true)" onmouseleave="setHot('${it.key}',false)">
+      <div class="blk-head"><span class="blk-key">${esc(it.key)}</span>
+        <span class="prov">근거</span><span class="blk-comp">${it.comp}</span></div>
+      <div class="blk-body">${renderComponent(it.comp,it.val)}</div></div>`;
+
+  let html="";
+  if(buckets.header.length){
+    html+=`<div class="region"><p class="region-tag">header</p><div class="stack">${buckets.header.map(blk).join("")}</div></div>`;
+  }
+  if(buckets.main.length||buckets.sidebar.length){
+    html+=`<div class="region"><p class="region-tag">main · sidebar</p><div class="dash-grid">
+      <div class="stack">${buckets.main.map(blk).join("")||'<div class="empty-note" style="padding:14px">main 비어 있음</div>'}</div>
+      <div class="stack">${buckets.sidebar.map(blk).join("")||''}</div></div></div>`;
+  }
+  dash.innerHTML=html;
+}
+
+/* 호버 연동: 매핑 행 ↔ 프리뷰 블록 */
+window.setHot=function(key,on){
+  document.querySelectorAll(`.map-row[data-key="${key}"]`).forEach(e=>e.classList.toggle("hot",on));
+  document.querySelectorAll(`.blk[data-key="${key}"]`).forEach(e=>e.classList.toggle("hot",on));
+};
+
+/* ---------- 계약 JSON 드로어 ---------- */
+function buildDisplayContract(){
+  const bindings={};
+  state.fields.forEach(f=>{
+    const b=state.bindings[f.key];
+    bindings[f.key]={region:b.region, component:b.component, order:b.order, ...(b.hideIfEmpty?{hideIfEmpty:true}:{})};
+  });
+  return {layout:"dashboard", regions:REGIONS, bindings};
+}
+function buildValueContract(){
+  const out={};
+  state.fields.forEach(f=>{ out[f.key]={type:f.gqlType, value:state.mock[f.key], meta:{provenance:"evt_xxx"}}; });
+  return out;
+}
+function openDrawer(){
+  document.getElementById("displayContract").textContent=JSON.stringify(buildDisplayContract(),null,2);
+  document.getElementById("valueContract").textContent=JSON.stringify(buildValueContract(),null,2);
+  document.getElementById("drawer").classList.add("open");
+  document.getElementById("drawer").setAttribute("aria-hidden","false");
+  document.getElementById("drawerBack").classList.add("open");
+}
+function closeDrawer(){
+  document.getElementById("drawer").classList.remove("open");
+  document.getElementById("drawer").setAttribute("aria-hidden","true");
+  document.getElementById("drawerBack").classList.remove("open");
+}
+
+/* ---------- 부팅 ---------- */
+function boot(){
+  document.getElementById("schema").value=DEFAULT_SCHEMA;
+  document.getElementById("btnParse").addEventListener("click",applySchema);
+  document.getElementById("btnReset").addEventListener("click",()=>{
+    state={fields:[],mock:{},bindings:{}};
+    document.getElementById("schema").value=DEFAULT_SCHEMA; applySchema();
+  });
+  document.getElementById("btnContract").addEventListener("click",openDrawer);
+  document.getElementById("drawerClose").addEventListener("click",closeDrawer);
+  document.getElementById("drawerBack").addEventListener("click",closeDrawer);
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeDrawer(); });
+  applySchema();
+}
+boot();
+</script>

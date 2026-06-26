@@ -1,0 +1,276 @@
+<!--
+  GenUI Bind Studio v3 — 헤들리스 바인딩 목업
+  "사용자가 만든 화면에 데이터만 매핑" 모델.
+  우리가 소유하는 것: 바인딩 런타임 + (선택) 포매터. 화면/컴포넌트/CSS는 전부 사용자 소유.
+  결과는 Shadow DOM에 격리. 데이터는 텍스트로 주입(이스케이프)되어 인젝션 안전.
+  표시 값은 모두 설명용 예시.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GenUI Bind Studio v3</title>
+<style>
+  :root{
+    --ink:#13202B; --ink-soft:#3A4C5A; --muted:#69808F;
+    --canvas:#E9EEF2; --paper:#FFFFFF; --line:#D7E0E6; --line-soft:#E7EDF1;
+    --code-bg:#0E1B27; --code-line:#1E3142; --code-text:#C7D6E0; --code-dim:#6E899B;
+    --accent:#0E7C86; --accent-bright:#13A4A2; --accent-wash:#E3F2F1;
+    --warn:#C77A12; --warn-bg:#FBF1E0;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box} html,body{margin:0;height:100%}
+  body{font-family:var(--sans); color:var(--ink); background:var(--canvas); font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased}
+  .app{display:flex; flex-direction:column; height:100vh; min-height:0}
+  header.bar{display:flex; align-items:center; gap:14px; padding:11px 20px; background:var(--paper); border-bottom:1px solid var(--line)}
+  .brand{display:flex; align-items:baseline; gap:10px; margin-right:auto}
+  .brand .logo{font-family:var(--mono); font-weight:600; letter-spacing:.04em; color:var(--paper); background:var(--ink); padding:4px 8px; border-radius:6px; font-size:12px}
+  .brand h1{font-size:15px; font-weight:650; margin:0; letter-spacing:-.01em}
+  .brand .sub{color:var(--muted); font-size:12.5px}
+  .btn{border:1px solid var(--line); background:var(--paper); color:var(--ink-soft); padding:7px 13px; border-radius:8px; font-size:13px; cursor:pointer; font-weight:550}
+  .btn:hover{border-color:var(--accent); color:var(--accent)}
+  .btn:focus-visible{outline:2px solid var(--accent-bright); outline-offset:2px}
+
+  .cols{display:flex; flex:1; min-height:0}
+  .col{display:flex; flex-direction:column; min-height:0; border-right:1px solid var(--line)}
+  .col.mine{flex:1.15; min-width:0}
+  .col.data{width:330px; flex:none}
+  .col.out{flex:1.25; min-width:0; border-right:none}
+  .col-head{display:flex; align-items:center; gap:10px; padding:12px 16px 11px; background:var(--paper); border-bottom:1px solid var(--line)}
+  .step-no{font-family:var(--mono); font-size:12px; font-weight:600; color:var(--accent); border:1px solid var(--accent); border-radius:6px; padding:2px 7px}
+  .col-head h2{font-size:13.5px; margin:0; font-weight:650}
+  .col-head .hint{margin-left:auto; color:var(--muted); font-size:11.5px}
+  .col-body{flex:1; min-height:0; overflow:auto; padding:14px 16px}
+  .col.data .col-body{background:var(--canvas)}
+  .col.out .col-body{background:#F6F8FA}
+
+  .code-wrap{background:var(--code-bg); border-radius:10px; overflow:hidden; border:1px solid var(--code-line); display:flex; flex-direction:column; height:100%}
+  .code-top{display:flex; align-items:center; gap:6px; padding:8px 11px; border-bottom:1px solid var(--code-line); font-family:var(--mono); font-size:11px; color:var(--code-dim)}
+  .dot{width:9px;height:9px;border-radius:50%}
+  textarea.code{flex:1; width:100%; border:0; resize:none; min-height:340px; background:transparent; color:var(--code-text); font-family:var(--mono); font-size:12px; line-height:1.6; padding:12px; outline:none; tab-size:2}
+
+  .legend{background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:12px 13px; margin-bottom:14px}
+  .legend h3{margin:0 0 9px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted)}
+  .legend .row{display:flex; gap:9px; margin-bottom:7px; font-size:12.5px; align-items:baseline}
+  .legend code{font-family:var(--mono); font-size:11.5px; background:var(--accent-wash); color:var(--accent); padding:2px 6px; border-radius:5px; white-space:nowrap}
+  .legend .row span{color:var(--ink-soft)}
+
+  .field-label{font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; margin:0 0 8px}
+  .keys{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px}
+  .keychip{font-family:var(--mono); font-size:11.5px; background:var(--paper); border:1px solid var(--line); border-radius:6px; padding:3px 8px; color:var(--ink-soft)}
+  .keychip b{color:var(--accent); font-weight:600} .keychip .ty{color:var(--muted)}
+
+  .data-item{margin-bottom:12px}
+  .data-item .k{font-family:var(--mono); font-size:12.5px; font-weight:600}
+  .data-item .ty{font-family:var(--mono); font-size:11px; color:var(--accent); margin-left:6px}
+  .ctrl{width:100%; margin-top:6px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:13px; background:var(--paper); color:var(--ink); font-family:var(--sans)}
+  textarea.ctrl{font-family:var(--mono); font-size:11.5px; line-height:1.5; resize:vertical; min-height:50px}
+  .ctrl:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-wash)}
+
+  .out-frame{background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:18px; min-height:200px}
+  .out-note{font-size:11.5px; color:var(--muted); margin-top:12px; text-align:center}
+  .own-tag{display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--accent); background:var(--accent-wash); border-radius:20px; padding:3px 10px; margin-bottom:12px}
+
+  .maint{background:var(--warn-bg); border:1px solid #EDD9A8; border-radius:9px; padding:11px 12px; margin-top:16px; font-size:12px; color:#7a5410; line-height:1.55}
+  .maint b{color:#5e3f0c}
+
+  @media (max-width:1100px){ .cols{flex-direction:column; overflow:auto} .col{width:auto !important; flex:none; border-right:none; border-bottom:1px solid var(--line)} .col-body{overflow:visible} textarea.code{min-height:240px} }
+  @media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand"><span class="logo">GenUI</span><h1>Bind Studio</h1><span class="sub">v3 · 내 화면에 데이터 매핑 (헤들리스)</span></div>
+    <button class="btn" id="btnReset">예시 복원</button>
+  </header>
+
+  <div class="cols">
+    <!-- 01 내 화면 -->
+    <section class="col mine">
+      <div class="col-head"><span class="step-no">01</span><h2>내 화면 (HTML·CSS)</h2><span class="hint">사용자 소유 · 우리는 안 만짐</span></div>
+      <div class="col-body" style="display:flex">
+        <div class="code-wrap">
+          <div class="code-top"><span class="dot" style="background:#E0726A"></span><span class="dot" style="background:#E0B23C"></span><span class="dot" style="background:#5FB37E"></span><span style="margin-left:6px">my-screen.html — 마커만 박으세요</span></div>
+          <textarea class="code" id="html" spellcheck="false"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 데이터 -->
+    <section class="col data">
+      <div class="col-head"><span class="step-no">02</span><h2>응답 데이터</h2><span class="hint">필드 키 = 계약</span></div>
+      <div class="col-body">
+        <div class="legend">
+          <h3>바인딩 규칙</h3>
+          <div class="row"><code>data-field="key"</code><span>값 주입(텍스트)</span></div>
+          <div class="row"><code>data-as="gauge"</code><span>포매터로 표시(선택)</span></div>
+          <div class="row"><code>data-each="key"</code><span>배열 반복</span></div>
+          <div class="row"><code>{{key}}</code><span>텍스트 보간</span></div>
+          <div class="row"><code>{{.}} {{.prop}}</code><span>반복 항목 참조</span></div>
+        </div>
+        <p class="field-label">응답 계약 (필드 키 · GraphQL이 정의)</p>
+        <div class="keys" id="keys"></div>
+        <p class="field-label">값 (예시 데이터)</p>
+        <div id="dataFields"></div>
+      </div>
+    </section>
+
+    <!-- 03 결과 -->
+    <section class="col out">
+      <div class="col-head"><span class="step-no">03</span><h2>바인딩 결과</h2><span class="hint">Shadow DOM 격리</span></div>
+      <div class="col-body">
+        <span class="own-tag">● 이 화면의 레이아웃·CSS는 전부 사용자가 작성한 것</span>
+        <div class="out-frame"><div id="result"></div></div>
+        <p class="out-note">데이터는 텍스트로 주입되어(이스케이프) 인젝션에 안전합니다. 미매핑 키는 크래시 대신 표시됩니다.</p>
+        <div class="maint">
+          <b>이 모델에서 우리(SDK)가 유지보수하는 것</b> — 바인딩 런타임, 필드 키 계약, 스트리밍/로딩/에러 상태, (선택) 포매터 몇 개.
+          화면·컴포넌트·디자인·반응형은 <b>전부 사용자 소유</b>라 우리 손이 닿지 않습니다.
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+"use strict";
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
+
+/* ===== (선택) 포매터 레지스트리 — 작고 사용자 확장 가능 ===== */
+const FORMAT = {
+  gauge:v=>{const n=Math.max(0,Math.min(1,Number(v)||0)); let c=n>=.7?"#D4493C":n>=.3?"#C77A12":"#2E8B57";
+    return `<div style="height:10px;border-radius:6px;background:#eef1f3;overflow:hidden"><i style="display:block;height:100%;width:${n*100}%;background:${c}"></i></div>`;},
+  table:v=>{ if(v&&typeof v==="object"&&!Array.isArray(v)) return `<table style="width:100%;border-collapse:collapse;font-size:12.5px">${Object.entries(v).map(([k,x])=>`<tr><td style="color:#69808F;padding:3px 0">${esc(k)}</td><td style="text-align:right;font-weight:600;padding:3px 0">${esc(x)}</td></tr>`).join("")}</table>`; return esc(JSON.stringify(v)); },
+  badge:v=>`<span style="font-size:12px;font-weight:650;padding:2px 9px;border-radius:20px;background:#E3F2F1;color:#0E7C86">${esc(v)}</span>`
+};
+
+/* ===== 응답 계약 + 값 (예시) ===== */
+const SCHEMA = [
+  {key:"patientName",  type:"Text"},
+  {key:"summary",      type:"Markdown"},
+  {key:"riskScore",    type:"Float"},
+  {key:"findings",     type:"Tags"},
+  {key:"vitals",       type:"Table"}
+];
+const DEFAULT_VALUES = {
+  patientName:"예시 환자 (67 / M)",
+  summary:"현재 안정적. 6시간 후 재평가 권고.",
+  riskScore:0.72,
+  findings:["호흡곤란","폐렴(예시)","CRP 상승"],
+  vitals:{"호흡수":18,"심박수":92,"체온(℃)":37.8,"SpO₂(%)":96}
+};
+let values = JSON.parse(JSON.stringify(DEFAULT_VALUES));
+
+/* ===== 사용자 화면 예시 (사용자 소유 마크업 + CSS) ===== */
+const DEFAULT_HTML =
+`<style>
+  /* 👇 전부 사용자(소비 팀)의 디자인 시스템 — 우리 카탈로그 아님 */
+  .board{font-family:system-ui;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .card{border:1px solid #e2e8f0;border-radius:14px;padding:14px;background:#fff;
+        box-shadow:0 1px 2px rgba(20,40,55,.04)}
+  .card h3{margin:0 0 7px;font-size:13px;color:#64748b;font-weight:600;
+           text-transform:uppercase;letter-spacing:.05em}
+  .name{font-size:17px;font-weight:700}
+  .pill{display:inline-block;background:#f1f5f9;color:#334155;border-radius:20px;
+        padding:3px 11px;font-size:12px;margin:2px}
+  .score{font-size:26px;font-weight:800;margin-top:8px}
+</style>
+
+<div class="board">
+  <div class="card" style="grid-column:1 / -1">
+    <h3>환자</h3>
+    <div class="name">{{patientName}}</div>
+    <div style="color:#475569;margin-top:4px" data-field="summary"></div>
+  </div>
+
+  <div class="card">
+    <h3>위험도</h3>
+    <div data-field="riskScore" data-as="gauge"></div>
+    <div class="score">{{riskScore}}</div>
+  </div>
+
+  <div class="card">
+    <h3>소견</h3>
+    <div data-each="findings"><span class="pill">{{.}}</span></div>
+  </div>
+
+  <div class="card" style="grid-column:1 / -1">
+    <h3>바이탈</h3>
+    <div data-field="vitals" data-as="table"></div>
+  </div>
+</div>`;
+
+/* ===== 데이터 키/값 에디터 ===== */
+function renderKeys(){
+  document.getElementById("keys").innerHTML = SCHEMA.map(f=>`<span class="keychip"><b>${esc(f.key)}</b> <span class="ty">:${esc(f.type)}</span></span>`).join("");
+}
+function renderDataFields(){
+  const host=document.getElementById("dataFields"); host.innerHTML="";
+  SCHEMA.forEach(f=>{
+    const v=values[f.key]; const wrap=document.createElement("div"); wrap.className="data-item";
+    wrap.innerHTML=`<div><span class="k">${esc(f.key)}</span><span class="ty">${esc(f.type)}</span></div>`;
+    let ed;
+    if(typeof v==="object"){
+      ed=document.createElement("textarea"); ed.className="ctrl"; ed.rows=3; ed.value=JSON.stringify(v,null,2);
+      ed.addEventListener("input",()=>{ try{values[f.key]=JSON.parse(ed.value); ed.style.borderColor="";}catch(_){ed.style.borderColor="#D4493C"; return;} bindNow(); });
+    } else if(typeof v==="number"){
+      ed=document.createElement("input"); ed.type="number"; ed.step="0.01"; ed.className="ctrl"; ed.value=v;
+      ed.addEventListener("input",()=>{ values[f.key]=ed.value===""?null:Number(ed.value); bindNow(); });
+    } else {
+      ed=document.createElement("input"); ed.className="ctrl"; ed.value=v;
+      ed.addEventListener("input",()=>{ values[f.key]=ed.value; bindNow(); });
+    }
+    wrap.appendChild(ed); host.appendChild(wrap);
+  });
+}
+
+/* ===== 바인딩 런타임 (우리가 소유하는 핵심) ===== */
+function interpolate(str, ctx){
+  return str.replace(/\{\{\s*([.\w]+)\s*\}\}/g,(m,token)=>{
+    if(token==="."){ return esc(ctx.__self); }
+    if(token.startsWith(".")){ const p=token.slice(1); return esc(ctx?.[p]); }
+    return (token in values) ? esc(typeof values[token]==="object"?JSON.stringify(values[token]):values[token]) : `<!--미매핑:${token}-->`;
+  });
+}
+function bind(root){
+  // 1) data-each : 배열 반복
+  root.querySelectorAll("[data-each]").forEach(el=>{
+    const key=el.dataset.each; const arr=values[key]; const tpl=el.innerHTML;
+    if(Array.isArray(arr)){
+      el.innerHTML = arr.map(item=>{
+        const ctx = (item && typeof item==="object") ? item : {__self:item};
+        return interpolate(tpl, ctx);
+      }).join("");
+    } else {
+      el.innerHTML = `<span style="color:#C77A12;font-size:12px">미매핑 배열: ${esc(key)}</span>`;
+    }
+  });
+  // 2) data-field : 값 주입 (기본 텍스트, data-as면 포매터)
+  root.querySelectorAll("[data-field]").forEach(el=>{
+    const key=el.dataset.field; const as=el.dataset.as;
+    if(!(key in values)){ el.textContent="미매핑: "+key; el.style.color="#C77A12"; el.style.fontSize="12px"; return; }
+    const v=values[key];
+    if(as && FORMAT[as]){ el.innerHTML = FORMAT[as](v); }
+    else { el.textContent = (typeof v==="object") ? JSON.stringify(v) : String(v); }
+  });
+  // 3) 남은 {{key}} 텍스트 보간 (스칼라)
+  const walker=document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const texts=[]; let n; while((n=walker.nextNode())) if(/\{\{[\w.]+\}\}/.test(n.nodeValue)) texts.push(n);
+  texts.forEach(t=>{
+    const span=document.createElement("span"); span.innerHTML=interpolate(t.nodeValue,{}); t.replaceWith(span);
+  });
+}
+function bindNow(){
+  const host=document.getElementById("result");
+  const shadow = host.shadowRoot || host.attachShadow({mode:"open"});
+  shadow.innerHTML = document.getElementById("html").value;  // 사용자 마크업 + CSS (격리)
+  bind(shadow);
+}
+
+/* ===== 부팅 ===== */
+function boot(){
+  document.getElementById("html").value=DEFAULT_HTML;
+  document.getElementById("html").addEventListener("input",bindNow);
+  document.getElementById("btnReset").addEventListener("click",()=>{ values=JSON.parse(JSON.stringify(DEFAULT_VALUES)); document.getElementById("html").value=DEFAULT_HTML; renderDataFields(); bindNow(); });
+  renderKeys(); renderDataFields(); bindNow();
+}
+boot();
+</script>

@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GenUI Bind Studio — 목업 모음</title>
+<style>
+  :root{--ink:#13202B;--muted:#69808F;--canvas:#E9EEF2;--paper:#fff;--line:#D7E0E6;--accent:#0E7C86;--accent-wash:#E3F2F1;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  *{box-sizing:border-box} body{margin:0;font-family:var(--sans);color:var(--ink);background:var(--canvas);line-height:1.5}
+  .wrap{max-width:760px;margin:0 auto;padding:40px 20px}
+  .logo{font-family:var(--mono);font-weight:600;color:#fff;background:var(--ink);padding:4px 8px;border-radius:6px;font-size:12px}
+  h1{font-size:20px;margin:14px 0 4px} .sub{color:var(--muted);font-size:13px;margin-bottom:24px}
+  a.card{display:block;text-decoration:none;color:inherit;background:var(--paper);border:1px solid var(--line);
+    border-radius:12px;padding:14px 16px;margin-bottom:10px;transition:border-color .12s,box-shadow .12s}
+  a.card:hover{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-wash)}
+  .v{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--accent);background:var(--accent-wash);border-radius:5px;padding:2px 7px;margin-right:8px}
+  .t{font-weight:650;font-size:14px} .d{color:var(--muted);font-size:12.5px;margin-top:4px}
+  .note{color:var(--muted);font-size:11.5px;margin-top:20px;line-height:1.7}
+</style>
+<div class="wrap">
+  <span class="logo">GenUI</span>
+  <h1>Bind Studio — 목업 모음</h1>
+  <div class="sub">헤들리스 바인딩 / 스트리밍 상태 / 드래그앤드롭 배치 / codegen·DevTools 컨셉 목업. 표시 값은 모두 설명용 예시(mock).</div>
+
+  <a class="card" href="./genui-binding-studio.html"><span class="v">v1</span><span class="t">Binding Studio</span><div class="d">응답값(GraphQL) 정의 → 필드 화면 매핑(where/how) → 라이브 프리뷰</div></a>
+  <a class="card" href="./genui-binding-studio-v2.html"><span class="v">v2</span><span class="t">Binding Studio</span><div class="d">드래그앤드롭 WYSIWYG 배치 + 데스크톱/모바일 뷰포트 + 컴포넌트 카탈로그(레지스트리)</div></a>
+  <a class="card" href="./genui-bind-studio-v3.html"><span class="v">v3</span><span class="t">Bind Studio</span><div class="d">헤들리스 바인딩 — 사용자 화면에 데이터만 매핑(Shadow DOM 격리)</div></a>
+  <a class="card" href="./genui-bind-studio-v4.html"><span class="v">v4</span><span class="t">Bind Studio</span><div class="d">스트리밍 상태 생애주기(pending → streaming → done / empty / error)</div></a>
+  <a class="card" href="./genui-bind-studio-v5.html"><span class="v">v5</span><span class="t">Bind Studio</span><div class="d">codegen(스키마→타입·키 검증) + 목모드 + DevTools(읽기전용 관찰자)</div></a>
+  <a class="card" href="./genui-bind-studio-v5_1.html"><span class="v">v5.1</span><span class="t">Bind Studio</span><div class="d">v5 계열 변형</div></a>
+
+  <div class="note">자체완결 HTML(외부 네트워크/폰트 의존 없음). 표시되는 임상 값·필드 타입은 모두 mock 예시이며 실제 제품 스키마가 아닙니다.</div>
+</div>
