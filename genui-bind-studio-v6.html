@@ -165,11 +165,12 @@
   /* demo tour */
   .demo-fab{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:50; background:var(--ink); color:#fff; border:none; border-radius:22px; padding:10px 20px; font-size:13.5px; font-weight:600; cursor:pointer; box-shadow:0 6px 20px rgba(15,30,45,.25)}
   .demo-fab:hover{background:#1c3344}
-  .demo-bar{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:51; display:none; align-items:center; gap:13px; background:var(--ink); color:#fff; border-radius:14px; padding:11px 15px; max-width:94vw; box-shadow:0 8px 28px rgba(15,30,45,.35)}
+  .demo-bar{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:51; display:none; align-items:center; gap:13px; background:var(--ink); color:#fff; border-radius:14px; padding:11px 15px; width:620px; max-width:94vw; box-shadow:0 8px 28px rgba(15,30,45,.35)}
   .demo-bar.open{display:flex}
   .demo-bar .step{font-family:var(--mono); font-size:10.5px; color:#9fb4c2; flex:none}
-  .demo-bar .cap{font-size:13px; line-height:1.4}
+  .demo-bar .cap{flex:1; min-width:0; font-size:13px; line-height:1.4}
   .demo-bar button{border:1px solid #33495a; background:#1c3344; color:#fff; border-radius:8px; padding:5px 11px; font-size:12px; cursor:pointer; flex:none}
+  .demo-bar .step,.demo-bar button{align-self:flex-start}
   .demo-bar button:hover{border-color:#5a7488}
   /* catalog checkbox (multi) */
   .cat-row .ck{width:18px;height:18px;border-radius:5px;border:2px solid var(--line); flex:none; display:flex; align-items:center; justify-content:center; color:#fff; font-size:11px; font-weight:700}
@@ -220,7 +221,7 @@
 <div class="app">
   <header class="bar">
     <button class="menu-btn" id="btnMenu" aria-label="에이전트 패널 열기">☰</button>
-    <div class="brand"><span class="logo">GenUI</span><h1>Bind Studio</h1><span class="sub">v24 · 비우기 대기표시·좌측 패널 접기</span></div>
+    <div class="brand"><span class="logo">GenUI</span><h1>Bind Studio</h1><span class="sub">v6 · 응답값↔화면 매핑 데모</span></div>
     <button class="btn" id="btnTpl">템플릿</button>
     <button class="btn primary" id="btnAdd">+ 에이전트</button>
     <button class="btn" id="btnReset">기본값 초기화</button>
@@ -708,16 +709,18 @@ function toggleDrawer(open){ const col=document.getElementById("agentsCol"), bk=
 
 /* ===== 데모 투어 ===== */
 const DEMO=[
-  {cap:"대시보드: 전체 에이전트가 매트릭스로 배치됩니다.", run:()=>setView("dashboard")},
-  {cap:"데이터 요청 — 각 패널이 대기→수신→완료로 채워집니다.", run:()=>{ setView("dashboard"); requestData(); }},
-  {cap:"패널은 자유롭게 이동·크기조정. (위험도 패널을 키워봅니다)", run:()=>{ if(layout.risk){ layout.risk={x:7,y:0,w:5,h:5}; renderView(); } }},
-  {cap:"대시보드 챗봇에 항목 이름을 입력하면 그 컴포넌트가 말풍선으로 나옵니다.", run:()=>{ const t=agentById("triage"); if(t){ advanceDashChat(t,"위험도와 활력징후 보여줘"); } }},
-  {cap:"이름이 포함된 에이전트만 렌더됩니다. (예: 검사)", run:()=>{ const t=agentById("triage"); if(t){ advanceDashChat(t,"검사 결과도 보여줘"); } }},
-  {cap:"화면 마크업은 에디터 창에서 수정합니다.", run:()=>openEditor("labs")},
-  {cap:"채팅 탭 — 같은 구성이 말풍선으로 어떻게 보이는지 미리보기(챗봇 제외).", run:()=>{ closeEditor(); setView("chat"); }},
-  {cap:"+ 에이전트: 카탈로그에서 여러 개를 한 번에 선택해 추가.", run:()=>{ setView("dashboard"); openCat(); }},
-  {cap:"템플릿: 구성과 디자인을 저장/불러오기 할 수 있습니다.", run:()=>{ closeCat(); openTpl(); }},
-  {cap:"데모 끝! 자유롭게 만져보세요.", run:()=>closeTpl()},
+  {cap:"대시보드: 좌측 위험도·활력·검사, 중앙 문진 챗봇, 우측 패혈증·녹음이 배치됩니다.", run:()=>setView("dashboard")},
+  {cap:"데이터 요청 — 각 패널이 대기→수신 중→완료로 스트리밍되며 채워집니다.", run:()=>{ setView("dashboard"); requestData(); }},
+  {cap:"패널은 헤더로 이동, 우하단으로 크기조정. (검사 패널을 키워봅니다)", run:()=>{ if(layout.labs){ layout.labs={x:0,y:7,w:3,h:6}; renderView(); } }},
+  {cap:"중앙 챗봇에 항목 이름을 입력하면 해당 컴포넌트가 말풍선 안에 실제로 렌더됩니다.", run:()=>{ const t=agentById("triage"); if(t){ advanceDashChat(t,"위험도와 활력징후 보여줘"); } }},
+  {cap:"이름·별칭이 포함된 에이전트만, 수신 중→완료로 표시됩니다. (예: 검사)", run:()=>{ const t=agentById("triage"); if(t){ advanceDashChat(t,"검사 결과도 보여줘"); } }},
+  {cap:"화면 마크업 편집 — 대시보드용/채팅용 마크업을 탭으로 나눠 따로 수정합니다.", run:()=>openEditor("labs")},
+  {cap:"채팅 UI 편집 — 말풍선(사용자/봇/컴포넌트) 템플릿과 채팅 CSS를 직접 고칩니다.", run:()=>{ closeEditor(); openChatEditor("triage"); }},
+  {cap:"채팅 탭 — 같은 구성이 실제 채팅 UI로 보이고, 데이터 요청 시 여기서도 스트리밍됩니다.", run:()=>{ closeChatEditor(); setView("chat"); requestData(); }},
+  {cap:"+ 에이전트 — 카탈로그에서 여러 개를 한 번에 골라 기본 위치로 추가합니다.", run:()=>{ setView("dashboard"); openCat(); }},
+  {cap:"템플릿 — 구성·디자인을 저장/불러오기. '기본 템플릿'이 미리 들어 있습니다.", run:()=>{ closeCat(); openTpl(); }},
+  {cap:"좌측 패널은 ‹ 로 접고, '기본값 초기화'로 언제든 처음 상태(CSS 포함)로 되돌립니다.", run:()=>{ closeTpl(); }},
+  {cap:"데모 끝! 자유롭게 만져보세요.", run:()=>{}},
 ];
 let demoI=0, demoTimer=null;
 function setView(v){ viewMode=v; document.querySelectorAll(".seg button").forEach(x=>x.classList.toggle("on",x.dataset.view===v)); renderView(); }
